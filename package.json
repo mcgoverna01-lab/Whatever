@@ -1,0 +1,28 @@
+{
+  "name": "pitch-draft",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Premier League fantasy football draft platform",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "npm run dev --workspace=@pitch-draft/server",
+    "dev:client": "npm run dev --workspace=@pitch-draft/client",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces --if-present",
+    "db:migrate": "npm run db:migrate --workspace=@pitch-draft/server",
+    "db:seed": "npm run db:seed --workspace=@pitch-draft/server",
+    "lint": "eslint packages/*/src --ext .ts,.tsx",
+    "typecheck": "tsc --build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
