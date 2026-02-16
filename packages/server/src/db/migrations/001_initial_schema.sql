@@ -20,7 +20,7 @@ CREATE TYPE draft_status AS ENUM ('scheduled', 'in_progress', 'paused', 'complet
 CREATE TYPE position_type AS ENUM ('GKP', 'DEF', 'MID', 'FWD');
 CREATE TYPE roster_slot AS ENUM ('GKP', 'DEF', 'MID', 'FWD', 'BENCH');
 CREATE TYPE waiver_status AS ENUM ('pending', 'processing', 'approved', 'rejected', 'cancelled');
-CREATE TYPE transaction_type AS ENUM ('waiver', 'faab', 'free_agent', 'trade');
+CREATE TYPE transaction_type AS ENUM ('draft', 'waiver', 'faab', 'free_agent', 'trade');
 
 -- ══════════════════════════════════════════════════════════════════
 -- Users

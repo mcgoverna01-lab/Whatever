@@ -1,5 +1,5 @@
 export type WaiverStatus = 'pending' | 'processing' | 'approved' | 'rejected' | 'cancelled';
-export type TransactionType = 'waiver' | 'faab' | 'free_agent' | 'trade';
+export type TransactionType = 'draft' | 'waiver' | 'faab' | 'free_agent' | 'trade';
 
 /**
  * Waiver claim — standard priority-based waiver wire.

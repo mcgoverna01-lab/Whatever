@@ -245,7 +245,7 @@ export async function makePick(
       // 9. Insert transaction log
       await client.query(
         `INSERT INTO transactions (league_id, member_id, type, player_in_id, source_id)
-         SELECT d.league_id, $2, 'waiver', $3, $4
+         SELECT d.league_id, $2, 'draft', $3, $4
          FROM drafts d WHERE d.id = $1`,
         [draftId, currentEntry.member_id, playerId, pickResult.rows[0].id],
       );
