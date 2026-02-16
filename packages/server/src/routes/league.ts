@@ -1,34 +1,37 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { query } from '../db/pool.js';
+import { authenticate } from '../auth/index.js';
 
 const CreateLeagueSchema = z.object({
   name: z.string().min(1).max(100),
   season: z.string().regex(/^\d{4}-\d{2}$/),
   size: z.number().int().min(4).max(16),
   draftType: z.enum(['snake', 'linear', 'auction']).default('snake'),
+  scoringMode: z.enum(['total_points', 'h2h', 'h2h_and_total']).default('total_points'),
   faabBudget: z.number().int().min(0).default(100),
   pickTimerSeconds: z.number().int().min(30).max(600).default(120),
   waiverDeadlineDay: z.number().int().min(1).max(7).nullable().default(null),
+  tradeReviewHours: z.number().int().min(0).max(168).default(24),
 });
 
 const JoinLeagueSchema = z.object({
-  userId: z.string().uuid(),
   teamName: z.string().min(1).max(50),
 });
 
 export async function registerLeagueRoutes(app: FastifyInstance): Promise<void> {
   // Create a league
-  app.post('/api/leagues', async (req, reply) => {
+  app.post('/api/leagues', {
+    preHandler: authenticate,
+  }, async (req, reply) => {
     const body = CreateLeagueSchema.parse(req.body);
-    // TODO: get userId from auth middleware
-    const userId = (req.headers['x-user-id'] as string) ?? '';
+    const userId = req.user!.sub;
 
     const result = await query(
-      `INSERT INTO leagues (name, season, size, draft_type, faab_budget, waiver_deadline_day, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO leagues (name, season, size, draft_type, scoring_mode, faab_budget, waiver_deadline_day, trade_review_hours, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [body.name, body.season, body.size, body.draftType, body.faabBudget, body.waiverDeadlineDay, userId],
+      [body.name, body.season, body.size, body.draftType, body.scoringMode, body.faabBudget, body.waiverDeadlineDay, body.tradeReviewHours, userId],
     );
 
     const league = result.rows[0];
@@ -73,14 +76,21 @@ export async function registerLeagueRoutes(app: FastifyInstance): Promise<void> 
   });
 
   // Join a league
-  app.post('/api/leagues/:leagueId/join', async (req, reply) => {
+  app.post('/api/leagues/:leagueId/join', {
+    preHandler: authenticate,
+  }, async (req, reply) => {
     const { leagueId } = z.object({ leagueId: z.string().uuid() }).parse(req.params);
     const body = JoinLeagueSchema.parse(req.body);
+    const userId = req.user!.sub;
 
     // Check league exists and has room
     const league = await query('SELECT * FROM leagues WHERE id = $1', [leagueId]);
     if (league.rows.length === 0) {
       return reply.code(404).send({ error: 'League not found' });
+    }
+
+    if (league.rows[0].status !== 'pending') {
+      return reply.code(400).send({ error: 'League is not accepting new members' });
     }
 
     const memberCount = await query(
@@ -91,11 +101,20 @@ export async function registerLeagueRoutes(app: FastifyInstance): Promise<void> 
       return reply.code(400).send({ error: 'League is full' });
     }
 
+    // Check user isn't already in the league
+    const existing = await query(
+      'SELECT 1 FROM league_members WHERE league_id = $1 AND user_id = $2',
+      [leagueId, userId],
+    );
+    if (existing.rows.length > 0) {
+      return reply.code(409).send({ error: 'Already a member of this league' });
+    }
+
     const result = await query(
       `INSERT INTO league_members (league_id, user_id, team_name, faab_remaining)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [leagueId, body.userId, body.teamName, league.rows[0].faab_budget],
+      [leagueId, userId, body.teamName, league.rows[0].faab_budget],
     );
 
     return reply.code(201).send(result.rows[0]);
