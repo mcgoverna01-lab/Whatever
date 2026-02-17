@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pitch Draft</title>
+<style>
+:root {
+  --bg-primary: #0a0e17;
+  --bg-secondary: #111827;
+  --bg-card: #1a2234;
+  --bg-card-hover: #1e2940;
+  --border: #2d3748;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #38bdf8;
+  --accent-hover: #7dd3fc;
+  --accent-dim: #38bdf820;
+  --success: #22c55e;
+  --success-dim: #22c55e20;
+  --gkp: #f59e0b;
+  --def: #22c55e;
+  --mid: #3b82f6;
+  --fwd: #ef4444;
+  --danger: #ef4444;
+  --danger-dim: #ef444420;
+  --warning: #f59e0b;
+  --warning-dim: #f59e0b20;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* TOP BAR */
+.top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.6rem 1rem;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+.top-bar-brand { display: flex; align-items: center; gap: 0.5rem; }
+.logo {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, var(--accent), #818cf8);
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 0.7rem; color: var(--bg-primary);
+}
+.top-bar-title { font-size: 1rem; font-weight: 700; letter-spacing: -0.02em; }
+.top-bar-subtitle { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.top-bar-user { display: flex; align-items: center; gap: 0.4rem; }
+.user-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--accent-dim); border: 2px solid var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.6rem; font-weight: 700; color: var(--accent);
+}
+.user-info { font-size: 0.7rem; }
+.user-name { font-weight: 600; }
+.user-team { color: var(--text-secondary); font-size: 0.6rem; }
+
+/* TAB NAV */
+.tab-nav {
+  display: flex; padding: 0 0.5rem;
+  background: var(--bg-secondary);
+  border-bottom: 2px solid var(--border);
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.tab-nav button {
+  padding: 0.6rem 0.9rem;
+  background: none; border: none;
+  color: var(--text-secondary);
+  font-size: 0.75rem; font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab-nav button:hover { color: var(--text-primary); }
+.tab-nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* CONTENT */
+.content { padding: 1rem; max-width: 1200px; margin: 0 auto; }
+.view { display: none; }
+.view.active { display: block; }
+
+/* CARDS */
+.card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem;
+}
+.card-title {
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-secondary); margin-bottom: 0.75rem;
+}
+
+/* HOME */
+.overview-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
+.stat-block { text-align: center; padding: 0.5rem; background: var(--bg-secondary); border-radius: 6px; }
+.stat-value { font-size: 1.25rem; font-weight: 700; color: var(--accent); }
+.stat-label { font-size: 0.6rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+.home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+
+/* MINI TABLE */
+.mini-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+.mini-table th {
+  padding: 0.4rem 0.5rem; text-align: left; font-weight: 600;
+  color: var(--text-muted); font-size: 0.625rem; text-transform: uppercase;
+  letter-spacing: 0.04em; border-bottom: 1px solid var(--border);
+}
+.mini-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); }
+.mini-table tr:last-child td { border-bottom: none; }
+.rank-col { width: 1.5rem; text-align: center; color: var(--text-muted); }
+.team-col { font-weight: 600; }
+.pts-col { text-align: right; color: var(--accent); font-weight: 600; }
+
+/* ACTIVITY */
+.activity-item {
+  display: flex; align-items: flex-start; gap: 0.4rem;
+  padding: 0.4rem 0.5rem; background: var(--bg-secondary);
+  border-radius: 6px; font-size: 0.75rem; margin-bottom: 0.375rem;
+}
+.activity-badge {
+  padding: 0.1rem 0.3rem; border-radius: 3px;
+  font-size: 0.5625rem; font-weight: 700; text-transform: uppercase; flex-shrink: 0;
+}
+.activity-badge.waiver { background: var(--accent-dim); color: var(--accent); }
+.activity-badge.faab { background: var(--warning-dim); color: var(--warning); }
+.activity-badge.trade { background: var(--success-dim); color: var(--success); }
+.activity-time { margin-left: auto; font-size: 0.6rem; color: var(--text-muted); white-space: nowrap; }
+
+/* FIXTURE ROW */
+.fixture-row {
+  display: flex; align-items: center;
+  padding: 0.4rem 0.5rem; background: var(--bg-secondary);
+  border-radius: 6px; font-size: 0.75rem; margin-bottom: 0.375rem;
+}
+.fixture-row .team-left, .fixture-row .team-right { flex: 1; }
+.fixture-row .team-right { text-align: right; }
+.fixture-score { padding: 0 0.5rem; font-weight: 700; color: var(--accent); font-size: 0.8rem; }
+
+/* DRAFT ROOM */
+.draft-room-view { margin: -1rem; }
+.draft-status-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.6rem 1rem; background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+.draft-progress { display: flex; align-items: center; gap: 0.5rem; flex: 1; }
+.draft-progress-text { font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap; }
+.progress-bar { flex: 1; height: 5px; background: var(--border); border-radius: 99px; overflow: hidden; max-width: 200px; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #818cf8); border-radius: 99px; transition: width 0.5s; }
+.timer-block { text-align: center; }
+.timer-display { font-size: 1.5rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.timer-label { font-size: 0.6rem; color: var(--text-secondary); }
+.on-clock-banner {
+  padding: 0.5rem 1rem; background: var(--accent-dim);
+  border-bottom: 1px solid var(--accent);
+  font-size: 0.8rem; font-weight: 600; text-align: center;
+}
+.draft-pick-feed { padding: 0.75rem 1rem; max-height: 45vh; overflow-y: auto; }
+.pick-item {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.4rem 0.5rem; font-size: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.pick-number { color: var(--text-muted); font-size: 0.625rem; min-width: 1.5rem; }
+.pick-info { flex: 1; }
+.pick-player { font-weight: 600; }
+.pick-team { font-size: 0.625rem; color: var(--text-muted); }
+.pos-tag {
+  font-size: 0.5625rem; font-weight: 700; padding: 0.1rem 0.3rem;
+  border-radius: 3px; text-transform: uppercase;
+}
+.pos-tag.gkp { background: #f59e0b30; color: var(--gkp); }
+.pos-tag.def { background: #22c55e30; color: var(--def); }
+.pos-tag.mid { background: #3b82f630; color: var(--mid); }
+.pos-tag.fwd { background: #ef444430; color: var(--fwd); }
+
+/* Draft board summary */
+.draft-boards { padding: 0 1rem 1rem; }
+.draft-board-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.75rem; margin-bottom: 0.5rem;
+}
+.draft-board-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 0.5rem;
+}
+.draft-board-name { font-size: 0.8rem; font-weight: 600; }
+.draft-board-count { font-size: 0.625rem; color: var(--text-muted); }
+.draft-board-picks { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.draft-board-picks span {
+  font-size: 0.625rem; padding: 0.1rem 0.3rem;
+  background: var(--bg-secondary); border-radius: 3px; color: var(--text-secondary);
+}
+
+/* ROSTER / PITCH */
+.roster-header { text-align: center; margin-bottom: 1rem; }
+.roster-team-name { font-size: 1.25rem; font-weight: 700; }
+.roster-subtitle { color: var(--text-secondary); font-size: 0.8rem; }
+.roster-meta { display: flex; justify-content: center; gap: 1.5rem; margin-top: 0.75rem; }
+.meta-item { text-align: center; }
+.meta-label { font-size: 0.5625rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.meta-value { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+.pitch {
+  position: relative;
+  background: linear-gradient(180deg, #1a5c2a 0%, #1e6b31 25%, #1a5c2a 25%, #1e6b31 50%, #1a5c2a 50%, #1e6b31 75%, #1a5c2a 75%, #1e6b31 100%);
+  border-radius: 10px; padding: 1.5rem 0.5rem;
+  min-height: 420px; display: flex; flex-direction: column; justify-content: space-between;
+  overflow: hidden;
+}
+.pitch-line-h {
+  position: absolute; top: 50%; left: 5%; right: 5%;
+  border-top: 1px solid rgba(255,255,255,0.15);
+}
+.pitch-circle {
+  position: absolute; top: 50%; left: 50%; width: 80px; height: 80px;
+  border: 1px solid rgba(255,255,255,0.15); border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+.pitch-row { display: flex; justify-content: center; gap: 0.5rem; position: relative; z-index: 1; padding: 0.25rem 0; }
+.player-card { display: flex; flex-direction: column; align-items: center; width: 70px; }
+.player-card-name {
+  background: rgba(0,0,0,0.75); color: #fff;
+  font-size: 0.625rem; font-weight: 600;
+  padding: 0.2rem 0.4rem; border-radius: 3px;
+  text-align: center; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.player-card-club { font-size: 0.5rem; color: rgba(255,255,255,0.5); }
+.player-card-pts {
+  font-size: 0.65rem; font-weight: 700; color: var(--accent);
+  background: rgba(0,0,0,0.6); padding: 0.1rem 0.3rem; border-radius: 3px;
+  margin-top: 0.1rem;
+}
+.bench-section { margin-top: 0.75rem; }
+.bench-title {
+  text-align: center; font-size: 0.625rem; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-muted);
+  margin-bottom: 0.5rem; padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+.bench-row { display: flex; justify-content: center; gap: 0.5rem; }
+.bench-row .player-card-name { background: rgba(255,255,255,0.1); }
+
+/* STANDINGS */
+.standings-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+.standings-header h2 { font-size: 1.1rem; font-weight: 700; }
+.standings-toggle { display: flex; gap: 0.2rem; background: var(--bg-card); padding: 0.2rem; border-radius: 6px; }
+.standings-toggle button {
+  padding: 0.3rem 0.6rem; background: none; border: none; border-radius: 4px;
+  color: var(--text-secondary); font-size: 0.7rem; font-weight: 600; cursor: pointer;
+}
+.standings-toggle button.active { background: var(--accent); color: var(--bg-primary); }
+.standings-table {
+  width: 100%; border-collapse: collapse; font-size: 0.75rem;
+  background: var(--bg-card); border-radius: 8px; overflow: hidden;
+}
+.standings-table th {
+  padding: 0.6rem 0.5rem; text-align: left; font-weight: 600;
+  color: var(--text-muted); font-size: 0.625rem; text-transform: uppercase;
+  letter-spacing: 0.04em; border-bottom: 1px solid var(--border);
+}
+.standings-table td { padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--border); }
+.standings-table tr:last-child td { border-bottom: none; }
+.standings-table tr:hover td { background: var(--bg-card-hover); }
+.team-cell { display: flex; flex-direction: column; gap: 0.1rem; }
+.team-name-main { font-weight: 600; }
+.team-manager { font-size: 0.625rem; color: var(--text-muted); }
+.form-bar { display: flex; gap: 0.2rem; }
+.form-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+/* H2H cards */
+.h2h-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.6rem; }
+.h2h-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.75rem;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.h2h-team { flex: 1; text-align: center; }
+.h2h-team .name { font-size: 0.75rem; font-weight: 600; }
+.h2h-score { font-size: 1rem; font-weight: 700; color: var(--accent); }
+.h2h-vs { color: var(--text-muted); font-size: 0.625rem; font-weight: 700; }
+
+/* WAIVER */
+.section-label {
+  font-size: 0.625rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 0.5rem;
+}
+.waiver-subtitle { color: var(--text-secondary); font-size: 0.75rem; margin-bottom: 0.75rem; }
+.free-agent-list { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.fa-row {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+}
+.fa-row:last-child { border-bottom: none; }
+.fa-row:hover { background: var(--bg-card-hover); }
+.fa-name { font-weight: 600; flex: 1; }
+.fa-club { color: var(--text-muted); font-size: 0.65rem; }
+.fa-pts { color: var(--accent); font-weight: 700; min-width: 2.5rem; text-align: right; }
+.claim-btn {
+  padding: 0.2rem 0.5rem; background: var(--accent); color: var(--bg-primary);
+  border: none; border-radius: 4px; font-size: 0.625rem; font-weight: 600; cursor: pointer;
+}
+.claim-btn:hover { background: var(--accent-hover); }
+.waiver-claims-panel { margin-top: 1rem; }
+.claim-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.6rem 0.75rem; display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 0.4rem; font-size: 0.75rem;
+}
+.claim-in { color: var(--success); font-weight: 600; }
+.claim-out { color: var(--danger); font-weight: 600; }
+.claim-arrow { color: var(--text-muted); }
+.claim-remove {
+  background: none; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 0.9rem; margin-left: auto;
+}
+.claim-remove:hover { color: var(--danger); }
+
+/* TRADE */
+.trade-deadline {
+  display: inline-block; font-size: 0.7rem; color: var(--warning);
+  background: var(--warning-dim); padding: 0.2rem 0.6rem;
+  border-radius: 99px; margin-bottom: 0.75rem; font-weight: 600;
+}
+.trade-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden; margin-bottom: 0.6rem;
+}
+.trade-card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.5rem 0.75rem; background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border); font-size: 0.75rem;
+}
+.trade-card-body { display: flex; padding: 0.75rem; gap: 0.75rem; }
+.trade-side { flex: 1; text-align: center; }
+.trade-side-label {
+  font-size: 0.5625rem; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-muted); margin-bottom: 0.25rem;
+}
+.trade-side-team { font-weight: 600; font-size: 0.8rem; margin-bottom: 0.375rem; }
+.trade-players { display: flex; flex-wrap: wrap; gap: 0.25rem; justify-content: center; }
+.trade-chip {
+  display: inline-flex; align-items: center; gap: 0.2rem;
+  padding: 0.2rem 0.5rem; background: var(--bg-secondary);
+  border: 1px solid var(--border); border-radius: 99px;
+  font-size: 0.7rem; font-weight: 600;
+}
+.trade-card-actions {
+  display: flex; gap: 0.4rem; padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--border);
+}
+.btn-accept {
+  padding: 0.3rem 0.7rem; background: var(--success); color: #fff;
+  border: none; border-radius: 4px; font-size: 0.7rem; font-weight: 600; cursor: pointer;
+}
+.btn-reject {
+  padding: 0.3rem 0.7rem; background: transparent; color: var(--danger);
+  border: 1px solid var(--danger); border-radius: 4px; font-size: 0.7rem; font-weight: 600; cursor: pointer;
+}
+.status-badge {
+  padding: 0.15rem 0.5rem; border-radius: 99px;
+  font-size: 0.6rem; font-weight: 600; text-transform: uppercase;
+}
+.status-badge.pending { background: var(--warning-dim); color: var(--warning); }
+.status-badge.accepted { background: var(--success-dim); color: var(--success); }
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .home-grid { grid-template-columns: 1fr; }
+  .overview-stats { grid-template-columns: repeat(2, 1fr); }
+  .h2h-grid { grid-template-columns: 1fr; }
+  .top-bar-user .user-info { display: none; }
+}
+@media (max-width: 480px) {
+  .player-card { width: 58px; }
+  .player-card-name { font-size: 0.5625rem; }
+  .overview-stats { grid-template-columns: 1fr 1fr; }
+  .pitch { padding: 1rem 0.25rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="top-bar">
+  <div class="top-bar-brand">
+    <div class="logo">PD</div>
+    <div>
+      <div class="top-bar-title">Pitch Draft</div>
+      <div class="top-bar-subtitle">Fantasy Premier League</div>
+    </div>
+  </div>
+  <div class="top-bar-user">
+    <div class="user-avatar">AM</div>
+    <div class="user-info">
+      <div class="user-name">Alex M.</div>
+      <div class="user-team">North London FC</div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB NAV -->
+<div class="tab-nav" id="tabNav">
+  <button class="active" data-tab="home">Home</button>
+  <button data-tab="draft">Draft</button>
+  <button data-tab="roster">Roster</button>
+  <button data-tab="standings">Standings</button>
+  <button data-tab="waivers">Waivers</button>
+  <button data-tab="trades">Trades</button>
+</div>
+
+<!-- VIEWS -->
+<div class="content">
+
+<!-- HOME -->
+<div class="view active" id="view-home">
+  <div class="card">
+    <div class="card-title">League Overview</div>
+    <div class="overview-stats">
+      <div class="stat-block"><div class="stat-value">24</div><div class="stat-label">Gameweek</div></div>
+      <div class="stat-block"><div class="stat-value">8</div><div class="stat-label">Teams</div></div>
+      <div class="stat-block"><div class="stat-value">$100</div><div class="stat-label">FAAB Budget</div></div>
+      <div class="stat-block"><div class="stat-value">120</div><div class="stat-label">Picks Made</div></div>
+    </div>
+  </div>
+  <div class="home-grid">
+    <div class="card">
+      <div class="card-title">Standings</div>
+      <table class="mini-table">
+        <thead><tr><th class="rank-col">#</th><th class="team-col">Team</th><th class="pts-col">Pts</th></tr></thead>
+        <tbody id="homeStandings"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">GW24 Fixtures</div>
+      <div id="homeFixtures"></div>
+    </div>
+    <div class="card" style="grid-column: 1 / -1;">
+      <div class="card-title">Recent Activity</div>
+      <div id="homeActivity"></div>
+    </div>
+  </div>
+</div>
+
+<!-- DRAFT -->
+<div class="view" id="view-draft">
+  <div class="draft-room-view">
+    <div class="draft-status-bar">
+      <div class="draft-progress">
+        <span class="draft-progress-text" id="draftProgressText">Pick 0 / 120</span>
+        <div class="progress-bar"><div class="progress-fill" id="draftProgressFill" style="width:0%"></div></div>
+      </div>
+      <div class="timer-block">
+        <div class="timer-display" id="draftTimer">0:30</div>
+        <div class="timer-label">on the clock</div>
+      </div>
+    </div>
+    <div class="on-clock-banner" id="onClockBanner">Draft starting...</div>
+    <div class="draft-pick-feed" id="draftPickFeed"></div>
+    <div class="draft-boards" id="draftBoards"></div>
+  </div>
+</div>
+
+<!-- ROSTER -->
+<div class="view" id="view-roster">
+  <div class="roster-header">
+    <div class="roster-team-name">North London FC</div>
+    <div class="roster-subtitle">GW24 Squad</div>
+    <div class="roster-meta">
+      <div class="meta-item"><div class="meta-value">1,847</div><div class="meta-label">Total Pts</div></div>
+      <div class="meta-item"><div class="meta-value">3rd</div><div class="meta-label">GW Rank</div></div>
+      <div class="meta-item"><div class="meta-value">$67</div><div class="meta-label">FAAB Left</div></div>
+    </div>
+  </div>
+  <div class="pitch" id="rosterPitch">
+    <div class="pitch-line-h"></div>
+    <div class="pitch-circle"></div>
+  </div>
+  <div class="bench-section">
+    <div class="bench-title">Bench</div>
+    <div class="bench-row" id="benchRow"></div>
+  </div>
+</div>
+
+<!-- STANDINGS -->
+<div class="view" id="view-standings">
+  <div class="standings-header">
+    <h2>Standings</h2>
+    <div class="standings-toggle" id="standingsToggle">
+      <button class="active" data-mode="total">Total Points</button>
+      <button data-mode="h2h">Head-to-Head</button>
+    </div>
+  </div>
+  <div id="standingsTotal">
+    <table class="standings-table">
+      <thead><tr><th style="width:2rem;text-align:center">#</th><th>Team</th><th>Form</th><th style="text-align:right">GW</th><th style="text-align:right">Total</th></tr></thead>
+      <tbody id="standingsBody"></tbody>
+    </table>
+  </div>
+  <div id="standingsH2H" style="display:none">
+    <div class="section-label">GW24 Matchups</div>
+    <div class="h2h-grid" id="h2hGrid"></div>
+  </div>
+</div>
+
+<!-- WAIVERS -->
+<div class="view" id="view-waivers">
+  <h2 style="font-size:1.1rem;font-weight:700;">Waiver Wire</h2>
+  <div class="waiver-subtitle">Priority: 3rd &bull; FAAB: $67 remaining &bull; Deadline: Fri 11:00</div>
+  <div class="section-label">Free Agents</div>
+  <div class="free-agent-list" id="freeAgentList"></div>
+  <div class="waiver-claims-panel">
+    <div class="section-label">Your Claims (<span id="claimCount">0</span>)</div>
+    <div id="claimList"></div>
+  </div>
+</div>
+
+<!-- TRADES -->
+<div class="view" id="view-trades">
+  <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:0.25rem;">Trades</h2>
+  <div class="trade-deadline">Trade deadline: GW30</div>
+  <div class="section-label">Pending Trades</div>
+  <div id="tradeList"></div>
+</div>
+
+</div>
+
+<script>
+// ========== DATA ==========
+const TEAMS = [
+  { name: 'North London FC', manager: 'Alex M.', pts: 1847, gw: 68 },
+  { name: 'Merseyside Reds', manager: 'Sarah K.', pts: 1812, gw: 72 },
+  { name: 'Blue Moon City', manager: 'James T.', pts: 1798, gw: 59 },
+  { name: 'West Ham Hammers', manager: 'Dan R.', pts: 1756, gw: 65 },
+  { name: 'Chelsea Blues', manager: 'Priya S.', pts: 1721, gw: 51 },
+  { name: 'Villa Park Stars', manager: 'Mike O.', pts: 1695, gw: 63 },
+  { name: 'Toon Army', manager: 'Chris L.', pts: 1654, gw: 48 },
+  { name: 'Brighton Seagulls', manager: 'Emma W.', pts: 1623, gw: 55 }
+];
+const FORM = [
+  ['W','W','L','W','D'], ['W','L','W','W','W'], ['L','W','W','D','W'],
+  ['W','D','W','L','W'], ['L','L','W','W','D'], ['W','W','L','D','L'],
+  ['L','D','L','W','L'], ['D','W','L','L','W']
+];
+const PLAYERS = [
+  { name:'Haaland', club:'MCI', pos:'FWD', pts:187, ppg:8.1 },
+  { name:'Salah', club:'LIV', pos:'MID', pts:176, ppg:7.7 },
+  { name:'Saka', club:'ARS', pos:'MID', pts:162, ppg:7.0 },
+  { name:'Palmer', club:'CHE', pos:'MID', pts:158, ppg:6.9 },
+  { name:'Watkins', club:'AVL', pos:'FWD', pts:144, ppg:6.3 },
+  { name:'Isak', club:'NEW', pos:'FWD', pts:141, ppg:6.5 },
+  { name:'Son', club:'TOT', pos:'MID', pts:139, ppg:6.1 },
+  { name:'B.Fernandes', club:'MUN', pos:'MID', pts:136, ppg:5.9 },
+  { name:'Gordon', club:'NEW', pos:'MID', pts:131, ppg:5.7 },
+  { name:'Martinelli', club:'ARS', pos:'MID', pts:128, ppg:5.6 },
+  { name:'Saliba', club:'ARS', pos:'DEF', pts:142, ppg:6.2 },
+  { name:'Gabriel', club:'ARS', pos:'DEF', pts:138, ppg:6.0 },
+  { name:'Alexander-Arnold', club:'LIV', pos:'DEF', pts:135, ppg:5.9 },
+  { name:'Trippier', club:'NEW', pos:'DEF', pts:127, ppg:5.5 },
+  { name:'Gvardiol', club:'MCI', pos:'DEF', pts:119, ppg:5.2 },
+  { name:'Van Dijk', club:'LIV', pos:'DEF', pts:116, ppg:5.0 },
+  { name:'Raya', club:'ARS', pos:'GKP', pts:134, ppg:5.6 },
+  { name:'Alisson', club:'LIV', pos:'GKP', pts:121, ppg:5.3 },
+  { name:'Ederson', club:'MCI', pos:'GKP', pts:108, ppg:4.7 },
+  { name:'Pickford', club:'EVE', pos:'GKP', pts:99, ppg:4.3 },
+  { name:'Solanke', club:'TOT', pos:'FWD', pts:112, ppg:4.9 },
+  { name:'Jackson', club:'CHE', pos:'FWD', pts:118, ppg:5.1 },
+  { name:'Cunha', club:'WOL', pos:'FWD', pts:114, ppg:5.0 },
+  { name:'Mbeumo', club:'BRE', pos:'MID', pts:125, ppg:5.4 },
+  { name:'Eze', club:'CRY', pos:'MID', pts:110, ppg:4.8 },
+  { name:'Diaz', club:'LIV', pos:'MID', pts:122, ppg:5.3 },
+  { name:'Estupinan', club:'BHA', pos:'DEF', pts:104, ppg:4.5 },
+  { name:'Ait-Nouri', club:'WOL', pos:'DEF', pts:98, ppg:4.3 },
+  { name:'Porro', club:'TOT', pos:'DEF', pts:102, ppg:4.4 },
+  { name:'Flekken', club:'BRE', pos:'GKP', pts:92, ppg:4.0 },
+  { name:'Martinez', club:'AVL', pos:'GKP', pts:95, ppg:4.1 },
+  { name:'Rice', club:'ARS', pos:'MID', pts:108, ppg:4.7 },
+  { name:'Rogers', club:'AVL', pos:'MID', pts:99, ppg:4.3 },
+  { name:'Bowen', club:'WHU', pos:'MID', pts:107, ppg:4.7 },
+  { name:'Rashford', club:'MUN', pos:'FWD', pts:88, ppg:3.8 },
+  { name:'Nkunku', club:'CHE', pos:'FWD', pts:91, ppg:4.0 },
+  { name:'Konsa', club:'AVL', pos:'DEF', pts:96, ppg:4.2 },
+  { name:'Dias', club:'MCI', pos:'DEF', pts:101, ppg:4.4 },
+  { name:'Schar', club:'NEW', pos:'DEF', pts:94, ppg:4.1 },
+  { name:'Colwill', club:'CHE', pos:'DEF', pts:89, ppg:3.9 }
+];
+
+// My roster
+const MY_STARTING = [
+  { name:'Raya', club:'ARS', pos:'GKP', pts:134 },
+  { name:'Saliba', club:'ARS', pos:'DEF', pts:142 },
+  { name:'Alexander-Arnold', club:'LIV', pos:'DEF', pts:135 },
+  { name:'Gvardiol', club:'MCI', pos:'DEF', pts:119 },
+  { name:'Saka', club:'ARS', pos:'MID', pts:162 },
+  { name:'Palmer', club:'CHE', pos:'MID', pts:158 },
+  { name:'Son', club:'TOT', pos:'MID', pts:139 },
+  { name:'Mbeumo', club:'BRE', pos:'MID', pts:125 },
+  { name:'Haaland', club:'MCI', pos:'FWD', pts:187 },
+  { name:'Watkins', club:'AVL', pos:'FWD', pts:144 },
+  { name:'Isak', club:'NEW', pos:'FWD', pts:141 }
+];
+const MY_BENCH = [
+  { name:'Flekken', club:'BRE', pos:'GKP', pts:92 },
+  { name:'Trippier', club:'NEW', pos:'DEF', pts:127 },
+  { name:'Eze', club:'CRY', pos:'MID', pts:110 },
+  { name:'Rashford', club:'MUN', pos:'FWD', pts:88 }
+];
+
+const FREE_AGENTS = [
+  { name:'Kudus', club:'WHU', pos:'MID', pts:84 },
+  { name:'Mitoma', club:'BHA', pos:'MID', pts:79 },
+  { name:'Madueke', club:'CHE', pos:'MID', pts:76 },
+  { name:'Joao Pedro', club:'BHA', pos:'FWD', pts:82 },
+  { name:'Wissa', club:'BRE', pos:'FWD', pts:74 },
+  { name:'Cash', club:'AVL', pos:'DEF', pts:71 },
+  { name:'Mykolenko', club:'EVE', pos:'DEF', pts:65 },
+  { name:'Areola', club:'WHU', pos:'GKP', pts:68 },
+  { name:'Ward', club:'LEI', pos:'GKP', pts:54 },
+  { name:'Dewsbury-Hall', club:'CHE', pos:'MID', pts:62 },
+  { name:'Elanga', club:'NFO', pos:'MID', pts:70 },
+  { name:'Strand Larsen', club:'WOL', pos:'FWD', pts:66 }
+];
+
+const FIXTURES = [
+  [0,1,68,72],[2,3,59,65],[4,5,51,63],[6,7,48,55]
+];
+
+const ACTIVITIES = [
+  { type:'waiver', text:'Merseyside Reds claimed Kudus, dropped Rashford', time:'2h ago' },
+  { type:'faab', text:'Blue Moon City won Mitoma for $12', time:'2h ago' },
+  { type:'trade', text:'West Ham Hammers traded Bowen to Villa Park Stars for Rogers', time:'1d ago' },
+  { type:'waiver', text:'Toon Army claimed Cash, dropped Mykolenko', time:'2d ago' }
+];
+
+const PENDING_TRADES = [
+  {
+    from: 'Chelsea Blues', to: 'North London FC', status: 'pending',
+    give: [{ name:'Jackson', pos:'FWD' },{ name:'Colwill', pos:'DEF' }],
+    get: [{ name:'Isak', pos:'FWD' }]
+  },
+  {
+    from: 'Villa Park Stars', to: 'Toon Army', status: 'pending',
+    give: [{ name:'Rogers', pos:'MID' }],
+    get: [{ name:'Gordon', pos:'MID' }]
+  }
+];
+
+// Draft simulation data
+const DRAFT_ORDER_NAMES = ['North London FC','Merseyside Reds','Blue Moon City','West Ham Hammers','Chelsea Blues','Villa Park Stars','Toon Army','Brighton Seagulls'];
+let draftPicks = [];
+let draftPlayerPool = [...PLAYERS];
+let draftTeamPicks = {};
+DRAFT_ORDER_NAMES.forEach(t => draftTeamPicks[t] = []);
+let draftPickIndex = 0;
+let draftTimer = 30;
+let draftInterval = null;
+let draftRunning = false;
+const TOTAL_PICKS = 120;
+
+// Claims
+let claims = [];
+
+// ========== TAB SWITCHING ==========
+document.querySelectorAll('.tab-nav button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-nav button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'draft' && !draftRunning) startDraft();
+  });
+});
+
+// ========== RENDER HOME ==========
+function renderHome() {
+  let html = '';
+  TEAMS.forEach((t,i) => {
+    html += `<tr><td class="rank-col">${i+1}</td><td class="team-col">${t.name}</td><td class="pts-col">${t.pts}</td></tr>`;
+  });
+  document.getElementById('homeStandings').innerHTML = html;
+
+  html = '';
+  FIXTURES.forEach(f => {
+    html += `<div class="fixture-row"><span class="team-left">${TEAMS[f[0]].name}</span><span class="fixture-score">${f[2]} - ${f[3]}</span><span class="team-right">${TEAMS[f[1]].name}</span></div>`;
+  });
+  document.getElementById('homeFixtures').innerHTML = html;
+
+  html = '';
+  ACTIVITIES.forEach(a => {
+    html += `<div class="activity-item"><span class="activity-badge ${a.type}">${a.type}</span><span>${a.text}</span><span class="activity-time">${a.time}</span></div>`;
+  });
+  document.getElementById('homeActivity').innerHTML = html;
+}
+
+// ========== RENDER ROSTER ==========
+function renderRoster() {
+  const pitch = document.getElementById('rosterPitch');
+  const byPos = { GKP:[], DEF:[], MID:[], FWD:[] };
+  MY_STARTING.forEach(p => byPos[p.pos].push(p));
+
+  let rows = '';
+  ['FWD','MID','DEF','GKP'].forEach(pos => {
+    rows += '<div class="pitch-row">';
+    byPos[pos].forEach(p => {
+      rows += `<div class="player-card"><div class="player-card-name">${p.name}</div><div class="player-card-club">${p.club}</div><div class="player-card-pts">${p.pts}</div></div>`;
+    });
+    rows += '</div>';
+  });
+  pitch.innerHTML = '<div class="pitch-line-h"></div><div class="pitch-circle"></div>' + rows;
+
+  let bench = '';
+  MY_BENCH.forEach(p => {
+    bench += `<div class="player-card"><div class="player-card-name">${p.name}</div><div class="player-card-club">${p.club}</div><div class="player-card-pts">${p.pts}</div></div>`;
+  });
+  document.getElementById('benchRow').innerHTML = bench;
+}
+
+// ========== RENDER STANDINGS ==========
+function renderStandings() {
+  const formColors = { W:'var(--success)', D:'var(--warning)', L:'var(--danger)' };
+  let html = '';
+  TEAMS.forEach((t,i) => {
+    const dots = FORM[i].map(f => `<span class="form-dot" style="background:${formColors[f]}"></span>`).join('');
+    html += `<tr>
+      <td style="width:2rem;text-align:center;color:var(--text-muted)">${i+1}</td>
+      <td><div class="team-cell"><span class="team-name-main">${t.name}</span><span class="team-manager">${t.manager}</span></div></td>
+      <td><div class="form-bar">${dots}</div></td>
+      <td style="text-align:right;color:var(--accent);font-weight:600">${t.gw}</td>
+      <td style="text-align:right;font-weight:700">${t.pts}</td>
+    </tr>`;
+  });
+  document.getElementById('standingsBody').innerHTML = html;
+
+  let h2h = '';
+  FIXTURES.forEach(f => {
+    const w0 = f[2] > f[3], w1 = f[3] > f[2];
+    h2h += `<div class="h2h-card">
+      <div class="h2h-team"><div class="name" style="${w0?'color:var(--accent)':''}">${TEAMS[f[0]].name}</div><div class="h2h-score">${f[2]}</div></div>
+      <div class="h2h-vs">vs</div>
+      <div class="h2h-team"><div class="name" style="${w1?'color:var(--accent)':''}">${TEAMS[f[1]].name}</div><div class="h2h-score">${f[3]}</div></div>
+    </div>`;
+  });
+  document.getElementById('h2hGrid').innerHTML = h2h;
+
+  document.querySelectorAll('#standingsToggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#standingsToggle button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('standingsTotal').style.display = btn.dataset.mode === 'total' ? 'block' : 'none';
+      document.getElementById('standingsH2H').style.display = btn.dataset.mode === 'h2h' ? 'block' : 'none';
+    });
+  });
+}
+
+// ========== RENDER WAIVERS ==========
+function renderWaivers() {
+  let html = '';
+  FREE_AGENTS.forEach((p,i) => {
+    const posClass = p.pos.toLowerCase();
+    html += `<div class="fa-row">
+      <span class="pos-tag ${posClass}">${p.pos}</span>
+      <span class="fa-name">${p.name}</span>
+      <span class="fa-club">${p.club}</span>
+      <span class="fa-pts">${p.pts}</span>
+      <button class="claim-btn" onclick="addClaim(${i})">Claim</button>
+    </div>`;
+  });
+  document.getElementById('freeAgentList').innerHTML = html;
+}
+
+function addClaim(faIndex) {
+  const fa = FREE_AGENTS[faIndex];
+  if (claims.find(c => c.in.name === fa.name)) return;
+  const dropOptions = MY_BENCH.concat(MY_STARTING);
+  const drop = dropOptions[Math.floor(Math.random() * MY_BENCH.length)];
+  claims.push({ in: fa, out: drop });
+  renderClaims();
+}
+
+function removeClaim(i) {
+  claims.splice(i, 1);
+  renderClaims();
+}
+
+function renderClaims() {
+  document.getElementById('claimCount').textContent = claims.length;
+  let html = '';
+  claims.forEach((c,i) => {
+    html += `<div class="claim-card">
+      <span style="color:var(--text-muted);font-size:0.65rem;min-width:1rem">${i+1}</span>
+      <span class="claim-in">+ ${c.in.name}</span>
+      <span class="claim-arrow">&larr;</span>
+      <span class="claim-out">- ${c.out.name}</span>
+      <button class="claim-remove" onclick="removeClaim(${i})">&times;</button>
+    </div>`;
+  });
+  document.getElementById('claimList').innerHTML = html;
+}
+
+// ========== RENDER TRADES ==========
+function renderTrades() {
+  let html = '';
+  PENDING_TRADES.forEach(t => {
+    const giveChips = t.give.map(p => `<span class="trade-chip"><span class="pos-tag ${p.pos.toLowerCase()}">${p.pos}</span>${p.name}</span>`).join('');
+    const getChips = t.get.map(p => `<span class="trade-chip"><span class="pos-tag ${p.pos.toLowerCase()}">${p.pos}</span>${p.name}</span>`).join('');
+    html += `<div class="trade-card">
+      <div class="trade-card-header"><span>${t.from} &harr; ${t.to}</span><span class="status-badge pending">Pending</span></div>
+      <div class="trade-card-body">
+        <div class="trade-side"><div class="trade-side-label">Sends</div><div class="trade-side-team">${t.from}</div><div class="trade-players">${giveChips}</div></div>
+        <div class="trade-side"><div class="trade-side-label">Receives</div><div class="trade-side-team">${t.to}</div><div class="trade-players">${getChips}</div></div>
+      </div>
+      <div class="trade-card-actions"><button class="btn-accept">Accept</button><button class="btn-reject">Reject</button></div>
+    </div>`;
+  });
+  document.getElementById('tradeList').innerHTML = html;
+}
+
+// ========== DRAFT SIMULATION ==========
+function getSnakeOrder(round, numTeams) {
+  return round % 2 === 0
+    ? Array.from({length: numTeams}, (_,i) => i)
+    : Array.from({length: numTeams}, (_,i) => numTeams - 1 - i);
+}
+
+function startDraft() {
+  draftRunning = true;
+  draftPicks = [];
+  draftPlayerPool = [...PLAYERS];
+  DRAFT_ORDER_NAMES.forEach(t => draftTeamPicks[t] = []);
+  draftPickIndex = 0;
+
+  function makePick() {
+    if (draftPickIndex >= TOTAL_PICKS || draftPlayerPool.length === 0) {
+      document.getElementById('onClockBanner').textContent = 'Draft Complete!';
+      document.getElementById('draftTimer').textContent = '--';
+      clearInterval(draftInterval);
+      return;
+    }
+
+    const round = Math.floor(draftPickIndex / 8);
+    const order = getSnakeOrder(round, 8);
+    const pickInRound = draftPickIndex % 8;
+    const teamIdx = order[pickInRound];
+    const teamName = DRAFT_ORDER_NAMES[teamIdx];
+
+    // Pick best available
+    const player = draftPlayerPool.shift();
+    draftPicks.unshift({ pick: draftPickIndex + 1, round: round + 1, team: teamName, player });
+    draftTeamPicks[teamName].push(player);
+    draftPickIndex++;
+
+    renderDraftState();
+    draftTimer = 30;
+
+    if (draftPickIndex >= TOTAL_PICKS) {
+      document.getElementById('onClockBanner').textContent = 'Draft Complete!';
+      document.getElementById('draftTimer').textContent = '--';
+      clearInterval(draftInterval);
+    }
+  }
+
+  // Timer tick
+  draftInterval = setInterval(() => {
+    draftTimer--;
+    if (draftTimer <= 0) {
+      makePick();
+    }
+    const display = document.getElementById('draftTimer');
+    if (draftPickIndex < TOTAL_PICKS) {
+      display.textContent = '0:' + String(draftTimer).padStart(2,'0');
+      display.style.color = draftTimer <= 5 ? 'var(--danger)' : draftTimer <= 10 ? 'var(--warning)' : 'var(--accent)';
+    }
+  }, 150); // Sped up for demo (150ms = ~4.5s per pick)
+
+  // First pick after short delay
+  setTimeout(makePick, 500);
+}
+
+function renderDraftState() {
+  const pct = Math.min((draftPickIndex / TOTAL_PICKS) * 100, 100);
+  document.getElementById('draftProgressFill').style.width = pct + '%';
+  document.getElementById('draftProgressText').textContent = `Pick ${draftPickIndex} / ${TOTAL_PICKS}`;
+
+  if (draftPickIndex < TOTAL_PICKS) {
+    const round = Math.floor(draftPickIndex / 8);
+    const order = getSnakeOrder(round, 8);
+    const pickInRound = draftPickIndex % 8;
+    const nextTeam = DRAFT_ORDER_NAMES[order[pickInRound]];
+    document.getElementById('onClockBanner').textContent = nextTeam + ' on the clock (Round ' + (round+1) + ')';
+  }
+
+  // Pick feed (show last 15)
+  const recent = draftPicks.slice(0, 15);
+  let feedHtml = '';
+  recent.forEach(p => {
+    const posClass = p.player.pos.toLowerCase();
+    feedHtml += `<div class="pick-item">
+      <span class="pick-number">${p.pick}</span>
+      <span class="pos-tag ${posClass}">${p.player.pos}</span>
+      <div class="pick-info"><span class="pick-player">${p.player.name}</span> <span class="pick-team">${p.team}</span></div>
+    </div>`;
+  });
+  document.getElementById('draftPickFeed').innerHTML = feedHtml;
+
+  // Board summary
+  let boardHtml = '';
+  DRAFT_ORDER_NAMES.forEach(team => {
+    const picks = draftTeamPicks[team];
+    const chips = picks.map(p => `<span>${p.pos} ${p.name}</span>`).join('');
+    boardHtml += `<div class="draft-board-card">
+      <div class="draft-board-header"><span class="draft-board-name">${team}</span><span class="draft-board-count">${picks.length}/15</span></div>
+      <div class="draft-board-picks">${chips || '<span style="color:var(--text-muted)">No picks yet</span>'}</div>
+    </div>`;
+  });
+  document.getElementById('draftBoards').innerHTML = boardHtml;
+}
+
+// ========== INIT ==========
+renderHome();
+renderRoster();
+renderStandings();
+renderWaivers();
+renderClaims();
+renderTrades();
+</script>
+</body>
+</html>
