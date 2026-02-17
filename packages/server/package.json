@@ -14,7 +14,7 @@
     "db:seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
-    "@pitch-draft/shared": "workspace:*",
+    "@pitch-draft/shared": "*",
     "pg": "^8.13.0",
     "fastify": "^5.2.0",
     "@fastify/websocket": "^11.0.0",
