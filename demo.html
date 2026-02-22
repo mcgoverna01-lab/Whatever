@@ -377,6 +377,113 @@ body {
 .status-badge.pending { background: var(--warning-dim); color: var(--warning); }
 .status-badge.accepted { background: var(--success-dim); color: var(--success); }
 
+/* BRAIN ANALYSIS */
+.brain-panel {
+  background: var(--bg-card); border: 1px solid var(--accent); border-radius: 8px;
+  margin-top: 0.75rem; overflow: hidden;
+}
+.brain-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.5rem 0.75rem; background: var(--accent-dim);
+  border-bottom: 1px solid var(--accent);
+}
+.brain-panel-title {
+  font-size: 0.75rem; font-weight: 700; color: var(--accent);
+  display: flex; align-items: center; gap: 0.3rem;
+}
+.brain-engine-tag {
+  font-size: 0.5625rem; padding: 0.1rem 0.3rem;
+  background: var(--bg-secondary); border-radius: 3px;
+  color: var(--text-muted); font-weight: 600;
+}
+.brain-verdict {
+  padding: 0.75rem; border-left: 3px solid var(--success);
+  margin: 0.6rem; background: var(--bg-secondary); border-radius: 0 6px 6px 0;
+}
+.brain-verdict.favors-a { border-left-color: var(--warning); }
+.brain-verdict.favors-b { border-left-color: var(--danger); }
+.verdict-title { font-size: 0.85rem; font-weight: 700; margin-bottom: 0.2rem; }
+.verdict-score { font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 0.3rem; }
+.verdict-summary { font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4; }
+.brain-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; padding: 0 0.6rem 0.6rem; }
+.brain-side {
+  background: var(--bg-secondary); border-radius: 6px; padding: 0.6rem;
+}
+.brain-side-team { font-size: 0.75rem; font-weight: 700; margin-bottom: 0.3rem; }
+.brain-side-total { font-size: 0.65rem; color: var(--accent); margin-bottom: 0.4rem; }
+.brain-player-row {
+  display: flex; align-items: center; gap: 0.3rem;
+  font-size: 0.7rem; padding: 0.2rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.brain-player-row:last-child { border-bottom: none; }
+.brain-stat { color: var(--text-muted); font-size: 0.6rem; margin-left: auto; }
+.brain-impact {
+  font-size: 0.6rem; color: var(--text-secondary); margin-top: 0.4rem;
+  padding-top: 0.3rem; border-top: 1px solid var(--border);
+  font-style: italic;
+}
+
+/* BRAIN WAIVER RECS */
+.brain-toggle {
+  display: flex; gap: 0.2rem; background: var(--bg-card);
+  padding: 0.2rem; border-radius: 6px; margin: 0.6rem 0;
+}
+.brain-toggle button {
+  padding: 0.3rem 0.6rem; background: none; border: none; border-radius: 4px;
+  color: var(--text-secondary); font-size: 0.7rem; font-weight: 600; cursor: pointer;
+}
+.brain-toggle button.active { background: var(--accent); color: var(--bg-primary); }
+.brain-needs { margin-bottom: 0.75rem; }
+.need-card {
+  display: flex; align-items: center; gap: 0.4rem;
+  padding: 0.4rem 0.5rem; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: 6px;
+  font-size: 0.75rem; margin-bottom: 0.3rem;
+}
+.severity-badge {
+  font-size: 0.5625rem; font-weight: 700; text-transform: uppercase;
+  padding: 0.1rem 0.3rem; border-radius: 3px; color: #fff;
+}
+.severity-badge.high { background: var(--danger); }
+.severity-badge.medium { background: var(--warning); }
+.severity-badge.low { background: var(--success); }
+.need-reason { color: var(--text-secondary); font-size: 0.7rem; }
+.rec-card {
+  display: flex; gap: 0.5rem; align-items: flex-start;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.6rem 0.75rem; margin-bottom: 0.4rem;
+}
+.rec-rank {
+  font-size: 0.75rem; font-weight: 700; color: var(--accent);
+  min-width: 1.5rem;
+}
+.rec-main { flex: 1; }
+.rec-player-info { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.2rem; }
+.rec-player-name { font-weight: 600; font-size: 0.8rem; }
+.rec-player-club { color: var(--text-muted); font-size: 0.65rem; }
+.rec-stats-row {
+  display: flex; gap: 0.5rem; font-size: 0.65rem;
+  color: var(--text-secondary); margin-bottom: 0.2rem;
+}
+.rec-stats-row .positive { color: var(--success); font-weight: 600; }
+.rec-stats-row .negative { color: var(--danger); }
+.rec-reason { font-size: 0.65rem; color: var(--text-muted); font-style: italic; }
+.rec-drop {
+  display: flex; align-items: center; gap: 0.3rem;
+  font-size: 0.65rem; color: var(--danger);
+  margin-top: 0.2rem; padding-top: 0.2rem;
+  border-top: 1px solid var(--border);
+}
+.rec-drop-label { font-weight: 600; }
+.analyze-btn {
+  padding: 0.3rem 0.7rem; background: linear-gradient(135deg, var(--accent), #818cf8);
+  color: var(--bg-primary); border: none; border-radius: 4px;
+  font-size: 0.7rem; font-weight: 700; cursor: pointer;
+  margin-top: 0.5rem; display: inline-block;
+}
+.analyze-btn:hover { opacity: 0.9; }
+
 /* RESPONSIVE */
 @media (max-width: 768px) {
   .home-grid { grid-template-columns: 1fr; }
@@ -520,11 +627,23 @@ body {
 <div class="view" id="view-waivers">
   <h2 style="font-size:1.1rem;font-weight:700;">Waiver Wire</h2>
   <div class="waiver-subtitle">Priority: 3rd &bull; FAAB: $67 remaining &bull; Deadline: Fri 11:00</div>
-  <div class="section-label">Free Agents</div>
-  <div class="free-agent-list" id="freeAgentList"></div>
-  <div class="waiver-claims-panel">
-    <div class="section-label">Your Claims (<span id="claimCount">0</span>)</div>
-    <div id="claimList"></div>
+
+  <div class="brain-toggle" id="waiverViewToggle">
+    <button class="active" data-mode="manual">Manual</button>
+    <button data-mode="brain">Brain Recommendations</button>
+  </div>
+
+  <div id="waiverManual">
+    <div class="section-label">Free Agents</div>
+    <div class="free-agent-list" id="freeAgentList"></div>
+    <div class="waiver-claims-panel">
+      <div class="section-label">Your Claims (<span id="claimCount">0</span>)</div>
+      <div id="claimList"></div>
+    </div>
+  </div>
+
+  <div id="waiverBrain" style="display:none">
+    <div id="brainWaiverRecs"></div>
   </div>
 </div>
 
@@ -534,6 +653,9 @@ body {
   <div class="trade-deadline">Trade deadline: GW30</div>
   <div class="section-label">Pending Trades</div>
   <div id="tradeList"></div>
+
+  <div class="section-label" style="margin-top:1rem;">Brain Trade Analysis</div>
+  <div id="brainTradeAnalysis"></div>
 </div>
 
 </div>
@@ -928,6 +1050,165 @@ function renderDraftState() {
   document.getElementById('draftBoards').innerHTML = boardHtml;
 }
 
+// ========== BRAIN TRADE ANALYSIS ==========
+function renderBrainTradeAnalysis() {
+  // Simulating a brain analysis of the first pending trade (Jackson+Colwill for Isak)
+  const analysis = {
+    verdict: 'Slightly Favors B',
+    verdictClass: 'favors-b',
+    fairness: 62,
+    summary: 'North London FC receives more projected ROS value. Isak\'s strong fixture run (FDR 2.4) and elite goal threat outweigh the combined value of Jackson and Colwill, despite losing defensive depth.',
+    sideA: {
+      team: 'Chelsea Blues',
+      total: 86.4,
+      players: [
+        { name: 'Jackson', pos: 'FWD', club: 'CHE', ros: 52.1, fdr: 3.2 },
+        { name: 'Colwill', pos: 'DEF', club: 'CHE', ros: 34.3, fdr: 3.2 }
+      ],
+      impact: 'Gains elite FWD but thins DEF depth to min starters'
+    },
+    sideB: {
+      team: 'North London FC',
+      total: 98.7,
+      players: [
+        { name: 'Isak', pos: 'FWD', club: 'NEW', ros: 98.7, fdr: 2.4 }
+      ],
+      impact: 'Adds DEF cover + serviceable FWD; FWD goes from elite to strong'
+    }
+  };
+
+  const renderSide = (side) => {
+    const playerRows = side.players.map(p =>
+      `<div class="brain-player-row">
+        <span class="pos-tag ${p.pos.toLowerCase()}">${p.pos}</span>
+        <span style="font-weight:600">${p.name}</span>
+        <span class="brain-stat">${p.ros.toFixed(1)} ROS &middot; FDR ${p.fdr.toFixed(1)}</span>
+      </div>`
+    ).join('');
+
+    return `<div class="brain-side">
+      <div class="brain-side-team">${side.team}</div>
+      <div class="brain-side-total">ROS: ${side.total.toFixed(1)} pts (scarcity-adjusted)</div>
+      ${playerRows}
+      <div class="brain-impact">${side.impact}</div>
+    </div>`;
+  };
+
+  document.getElementById('brainTradeAnalysis').innerHTML = `
+    <div class="brain-panel">
+      <div class="brain-panel-header">
+        <span class="brain-panel-title">Brain Analysis: Jackson + Colwill &harr; Isak</span>
+        <span class="brain-engine-tag">heuristic engine</span>
+      </div>
+      <div class="brain-verdict ${analysis.verdictClass}">
+        <div class="verdict-title">${analysis.verdict}</div>
+        <div class="verdict-score">Fairness: ${analysis.fairness}%</div>
+        <div class="verdict-summary">${analysis.summary}</div>
+      </div>
+      <div class="brain-sides">
+        ${renderSide(analysis.sideA)}
+        ${renderSide(analysis.sideB)}
+      </div>
+    </div>`;
+}
+
+// ========== BRAIN WAIVER RECS ==========
+function renderBrainWaiverRecs() {
+  const needs = [
+    { pos: 'DEF', severity: 'high', reason: 'Only 3 starters at DEF avg 4.2 PPG — below league median of 5.1' },
+    { pos: 'FWD', severity: 'medium', reason: 'Strong starters but bench FWD (Rashford 3.8 PPG) is droppable' },
+    { pos: 'GKP', severity: 'low', reason: 'Raya elite, Flekken solid backup' }
+  ];
+
+  const recs = [
+    {
+      name: 'Kudus', pos: 'MID', club: 'WHU', form: 6.2, fdr: 2.6,
+      ros: 72.4, gain: 18.6,
+      reason: 'Hot form (6.2 last 5) + excellent fixtures (WHU FDR 2.6). Replaces weakest MID slot.',
+      drop: { name: 'Eze', pos: 'MID', club: 'CRY' }
+    },
+    {
+      name: 'Cash', pos: 'DEF', club: 'AVL', form: 4.8, fdr: 2.8,
+      ros: 58.3, gain: 14.2,
+      reason: 'Fills DEF need. AVL have 3 home fixtures in next 5 GWs. Attacking fullback upside.',
+      drop: { name: 'Rashford', pos: 'FWD', club: 'MUN' }
+    },
+    {
+      name: 'Joao Pedro', pos: 'FWD', club: 'BHA', form: 5.1, fdr: 3.0,
+      ros: 54.7, gain: 8.3,
+      reason: 'Better underlying stats (xG+xA) than current bench FWD. Brighton play open style.',
+      drop: { name: 'Rashford', pos: 'FWD', club: 'MUN' }
+    },
+    {
+      name: 'Mitoma', pos: 'MID', club: 'BHA', form: 5.5, fdr: 3.0,
+      ros: 49.2, gain: 5.1,
+      reason: 'Explosive ceiling. Bonus magnet when fit. BHA double GW in GW29.',
+      drop: { name: 'Eze', pos: 'MID', club: 'CRY' }
+    },
+    {
+      name: 'Elanga', pos: 'MID', club: 'NFO', form: 4.4, fdr: 2.4,
+      ros: 44.8, gain: 3.2,
+      reason: 'NFO best remaining fixtures in the league (FDR 2.4). Nailed starter, consistent minutes.',
+      drop: { name: 'Eze', pos: 'MID', club: 'CRY' }
+    }
+  ];
+
+  let needsHtml = needs.map(n =>
+    `<div class="need-card">
+      <span class="pos-tag ${n.pos.toLowerCase()}">${n.pos}</span>
+      <span class="severity-badge ${n.severity}">${n.severity}</span>
+      <span class="need-reason">${n.reason}</span>
+    </div>`
+  ).join('');
+
+  let recsHtml = recs.map((r, i) =>
+    `<div class="rec-card">
+      <div class="rec-rank">#${i + 1}</div>
+      <div class="rec-main">
+        <div class="rec-player-info">
+          <span class="pos-tag ${r.pos.toLowerCase()}">${r.pos}</span>
+          <span class="rec-player-name">${r.name}</span>
+          <span class="rec-player-club">${r.club}</span>
+        </div>
+        <div class="rec-stats-row">
+          <span>ROS: ${r.ros.toFixed(1)}</span>
+          <span>Form: ${r.form.toFixed(1)}</span>
+          <span>FDR: ${r.fdr.toFixed(1)}</span>
+          <span class="${r.gain > 0 ? 'positive' : 'negative'}">+${r.gain.toFixed(1)} gain</span>
+        </div>
+        <div class="rec-reason">${r.reason}</div>
+        ${r.drop ? `<div class="rec-drop"><span class="rec-drop-label">Drop:</span> <span class="pos-tag ${r.drop.pos.toLowerCase()}">${r.drop.pos}</span> ${r.drop.name} (${r.drop.club})</div>` : ''}
+      </div>
+    </div>`
+  ).join('');
+
+  document.getElementById('brainWaiverRecs').innerHTML = `
+    <div class="brain-panel" style="border-color: var(--border);">
+      <div class="brain-panel-header">
+        <span class="brain-panel-title">Brain Recommendations</span>
+        <span class="brain-engine-tag">heuristic engine</span>
+      </div>
+      <div style="padding: 0.6rem;">
+        <div class="brain-needs">
+          <div class="section-label">Roster Needs</div>
+          ${needsHtml}
+        </div>
+        <div class="section-label">Recommended Pickups (${recs.length})</div>
+        ${recsHtml}
+      </div>
+    </div>`;
+}
+
+// Waiver view toggle
+document.querySelectorAll('#waiverViewToggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#waiverViewToggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('waiverManual').style.display = btn.dataset.mode === 'manual' ? 'block' : 'none';
+    document.getElementById('waiverBrain').style.display = btn.dataset.mode === 'brain' ? 'block' : 'none';
+  });
+});
+
 // ========== INIT ==========
 renderHome();
 renderRoster();
@@ -935,6 +1216,8 @@ renderStandings();
 renderWaivers();
 renderClaims();
 renderTrades();
+renderBrainTradeAnalysis();
+renderBrainWaiverRecs();
 </script>
 </body>
 </html>
