@@ -8,10 +8,50 @@ interface Props {
   rosters: Map<string, MockPlayer[]>;
 }
 
+interface BrainTradeResult {
+  valid: boolean;
+  violations: Array<{ type: string; message: string; side: string }>;
+  verdict: string;
+  fairnessScore: number;
+  summary: string;
+  sideA: {
+    teamName: string;
+    totalRaw: number;
+    totalAdjusted: number;
+    rosterImpact: string;
+    players: Array<{
+      name: string;
+      position: string;
+      clubCode: string;
+      projectedROS: number;
+      scarcityAdjusted: number;
+      fixtureRun: number;
+    }>;
+  };
+  sideB: {
+    teamName: string;
+    totalRaw: number;
+    totalAdjusted: number;
+    rosterImpact: string;
+    players: Array<{
+      name: string;
+      position: string;
+      clubCode: string;
+      projectedROS: number;
+      scarcityAdjusted: number;
+      fixtureRun: number;
+    }>;
+  };
+  engine: string;
+}
+
 export function TradeView({ members, currentMemberId, rosters }: Props) {
   const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
   const [myOffers, setMyOffers] = useState<Set<number>>(new Set());
   const [theirOffers, setTheirOffers] = useState<Set<number>>(new Set());
+  const [brainResult, setBrainResult] = useState<BrainTradeResult | null>(null);
+  const [brainLoading, setBrainLoading] = useState(false);
+  const [brainError, setBrainError] = useState<string | null>(null);
 
   const otherMembers = members.filter((m) => m.id !== currentMemberId);
   const myRoster = rosters.get(currentMemberId) ?? [];
@@ -24,6 +64,7 @@ export function TradeView({ members, currentMemberId, rosters }: Props) {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+    setBrainResult(null);
   };
 
   const toggleTheir = (id: number) => {
@@ -32,6 +73,47 @@ export function TradeView({ members, currentMemberId, rosters }: Props) {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+    setBrainResult(null);
+  };
+
+  const analyzeTrade = async () => {
+    if (myOffers.size === 0 || theirOffers.size === 0 || !selectedPartner) return;
+
+    setBrainLoading(true);
+    setBrainError(null);
+    setBrainResult(null);
+
+    try {
+      const res = await fetch('/api/brain/trade/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leagueId: '00000000-0000-0000-0000-000000000000', // demo
+          memberIdA: currentMemberId,
+          memberIdB: selectedPartner,
+          sendPlayerIds: [...myOffers],
+          receivePlayerIds: [...theirOffers],
+        }),
+      });
+
+      if (!res.ok) throw new Error(`Brain API error: ${res.status}`);
+      const data = await res.json();
+      setBrainResult(data);
+    } catch (err: any) {
+      setBrainError(err.message ?? 'Failed to analyze trade');
+    } finally {
+      setBrainLoading(false);
+    }
+  };
+
+  const verdictColor = (verdict: string): string => {
+    if (verdict === 'fair') return 'var(--green)';
+    if (verdict.includes('slightly')) return 'var(--yellow)';
+    return 'var(--red)';
+  };
+
+  const verdictLabel = (verdict: string): string => {
+    return verdict.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   };
 
   // Mock pending trades
@@ -123,6 +205,8 @@ export function TradeView({ members, currentMemberId, rosters }: Props) {
                   setSelectedPartner(selectedPartner === m.id ? null : m.id);
                   setMyOffers(new Set());
                   setTheirOffers(new Set());
+                  setBrainResult(null);
+                  setBrainError(null);
                 }}
               >
                 {m.teamName}
@@ -152,7 +236,7 @@ export function TradeView({ members, currentMemberId, rosters }: Props) {
               </div>
             </div>
 
-            {/* Summary */}
+            {/* Summary + Brain Analysis */}
             <div className="trade-summary">
               <div className="trade-summary-arrows">
                 {myOffers.size > 0 && (
@@ -174,12 +258,77 @@ export function TradeView({ members, currentMemberId, rosters }: Props) {
                   </div>
                 )}
               </div>
-              <button
-                className="submit-trade-btn"
-                disabled={myOffers.size === 0 || theirOffers.size === 0}
-              >
-                Propose Trade
-              </button>
+
+              <div className="trade-actions-row">
+                <button
+                  className="submit-trade-btn"
+                  disabled={myOffers.size === 0 || theirOffers.size === 0}
+                >
+                  Propose Trade
+                </button>
+                <button
+                  className="analyze-trade-btn"
+                  disabled={myOffers.size === 0 || theirOffers.size === 0 || brainLoading}
+                  onClick={analyzeTrade}
+                >
+                  {brainLoading ? 'Analyzing...' : 'Brain Analysis'}
+                </button>
+              </div>
+
+              {/* Brain Analysis Result */}
+              {brainError && (
+                <div className="brain-error">
+                  Brain unavailable: {brainError}
+                </div>
+              )}
+
+              {brainResult && (
+                <div className="brain-analysis">
+                  <div className="brain-header">
+                    <span className="brain-label">Brain Analysis</span>
+                    <span className="brain-engine">Engine: {brainResult.engine}</span>
+                  </div>
+
+                  {!brainResult.valid && (
+                    <div className="brain-violations">
+                      {brainResult.violations.map((v, i) => (
+                        <div key={i} className="brain-violation">{v.message}</div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div
+                    className="brain-verdict"
+                    style={{ borderLeftColor: verdictColor(brainResult.verdict) }}
+                  >
+                    <div className="verdict-title">{verdictLabel(brainResult.verdict)}</div>
+                    <div className="verdict-score">
+                      Fairness: {(brainResult.fairnessScore * 100).toFixed(0)}%
+                    </div>
+                    <div className="verdict-summary">{brainResult.summary}</div>
+                  </div>
+
+                  <div className="brain-sides">
+                    {[brainResult.sideA, brainResult.sideB].map((side, i) => (
+                      <div key={i} className="brain-side">
+                        <div className="brain-side-team">{side.teamName}</div>
+                        <div className="brain-side-total">
+                          ROS: {side.totalAdjusted.toFixed(1)} pts (adj)
+                        </div>
+                        {side.players.map((p, j) => (
+                          <div key={j} className="brain-player-row">
+                            <span className={`pos-badge pos-${p.position.toLowerCase()}`}>{p.position}</span>
+                            <span>{p.name}</span>
+                            <span className="brain-player-stat">{p.projectedROS.toFixed(1)} ROS</span>
+                            <span className="brain-player-stat">FDR {p.fixtureRun.toFixed(1)}</span>
+                          </div>
+                        ))}
+                        <div className="brain-side-impact">{side.rosterImpact}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Their players */}

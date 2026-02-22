@@ -1,201 +1,236 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import {
-  sleeper,
-  SleeperClient,
-  createEngine,
-  evaluateTrade,
-  recommendWaivers,
-  adviseFaab,
-} from '../brain/index.js';
-import type { ProjectionContext } from '../brain/types.js';
+import { fpl, createEngine, evaluateTrade, recommendWaivers, adviseFaab } from '../brain/index.js';
+import { query } from '../db/pool.js';
+import type { BrainRoster, ProjectionContext } from '../brain/types.js';
 
 const engine = createEngine(process.env.PROJECTION_ENGINE ?? 'heuristic');
 
 /**
- * Brain routes — the intelligence layer.
+ * Brain routes — the FPL intelligence layer.
  *
- * All endpoints take a Sleeper league ID and work against live Sleeper data.
- * No database required — everything is fetched from Sleeper and computed on the fly.
+ * All endpoints use the FPL API for player data and projections.
+ * Rosters are loaded from the DB (users connect their league first).
  *
- * GET  /api/brain/league/:leagueId             → League overview with enriched rosters
+ * GET  /api/brain/context                      → Current FPL context (GW, player count)
  * POST /api/brain/trade/evaluate               → Evaluate a trade proposal
- * GET  /api/brain/waiver/:leagueId/:rosterId   → Waiver recommendations
- * GET  /api/brain/faab/:leagueId/:rosterId     → FAAB budget advice
+ * GET  /api/brain/waiver/:leagueId/:memberId   → Waiver recommendations
+ * GET  /api/brain/faab/:leagueId/:memberId     → FAAB budget advice
+ * POST /api/brain/project/:playerId            → Single player projection
  */
 export async function registerBrainRoutes(app: FastifyInstance): Promise<void> {
 
-  // ── League overview ─────────────────────────────────────────
+  // ── FPL context / health check ──────────────────────────────
 
-  app.get('/api/brain/league/:leagueId', async (req, reply) => {
-    const { leagueId } = z.object({ leagueId: z.string().min(1) }).parse(req.params);
-
-    const [league, rosters, users] = await Promise.all([
-      sleeper.getLeague(leagueId),
-      sleeper.getRosters(leagueId),
-      sleeper.getUsers(leagueId),
-    ]);
-
-    const userMap = new Map(users.map((u) => [u.user_id, u]));
-
-    const enrichedRosters = rosters.map((r) => {
-      const user = userMap.get(r.owner_id);
-      return {
-        rosterId: r.roster_id,
-        ownerId: r.owner_id,
-        ownerName: user?.display_name ?? 'Unknown',
-        playerCount: r.players?.length ?? 0,
-        record: `${r.settings.wins}-${r.settings.losses}${r.settings.ties ? `-${r.settings.ties}` : ''}`,
-        fpts: r.settings.fpts + (r.settings.fpts_decimal ?? 0) / 100,
-        faabUsed: r.settings.waiver_budget_used ?? 0,
-        faabRemaining: (league.settings.waiver_budget || 100) - (r.settings.waiver_budget_used ?? 0),
-      };
-    });
+  app.get('/api/brain/context', async (_req, reply) => {
+    const ctx = await fpl.buildContext();
 
     return reply.send({
-      leagueId: league.league_id,
-      name: league.name,
-      season: league.season,
-      totalRosters: league.total_rosters,
-      status: league.status,
-      rosterPositions: league.roster_positions,
-      scoringType: detectScoringType(league.scoring_settings),
-      rosters: enrichedRosters,
       engine: engine.name,
+      currentGameweek: ctx.currentGameweek,
+      totalGameweeks: ctx.totalGameweeks,
+      playerCount: ctx.players.size,
+      clubCount: ctx.clubs.size,
+      fixtureCount: ctx.fixtures.length,
     });
+  });
+
+  // ── Single player projection ──────────────────────────────────
+
+  app.post('/api/brain/project/:playerId', async (req, reply) => {
+    const { playerId } = z.object({
+      playerId: z.coerce.number().int().positive(),
+    }).parse(req.params);
+
+    const ctx = await fpl.buildContext();
+    const projection = engine.projectPlayer(playerId, ctx);
+
+    return reply.send({ ...projection, engine: engine.name });
   });
 
   // ── Trade evaluator ─────────────────────────────────────────
 
   const TradeBody = z.object({
-    leagueId: z.string().min(1),
-    rosterIdA: z.number().int().positive(),
-    rosterIdB: z.number().int().positive(),
-    sendPlayerIds: z.array(z.string().min(1)).min(1).max(10),
-    receivePlayerIds: z.array(z.string().min(1)).min(1).max(10),
+    leagueId: z.string().uuid(),
+    memberIdA: z.string().uuid(),
+    memberIdB: z.string().uuid(),
+    sendPlayerIds: z.array(z.number().int().positive()).min(1).max(10),
+    receivePlayerIds: z.array(z.number().int().positive()).min(1).max(10),
   });
 
   app.post('/api/brain/trade/evaluate', async (req, reply) => {
     const body = TradeBody.parse(req.body);
+    const ctx = await fpl.buildContext();
 
-    const ctx = await buildContext(body.leagueId);
-    const rosters = await sleeper.getRosters(body.leagueId);
+    const allRosters = await loadLeagueRosters(body.leagueId, ctx);
+    const rosterA = allRosters.find((r) => r.memberId === body.memberIdA);
+    const rosterB = allRosters.find((r) => r.memberId === body.memberIdB);
+
+    if (!rosterA || !rosterB) {
+      return reply.code(404).send({ error: 'One or both rosters not found' });
+    }
 
     const result = evaluateTrade(
       {
-        rosterIdA: body.rosterIdA,
-        rosterIdB: body.rosterIdB,
+        rosterA,
+        rosterB,
         sendPlayerIds: body.sendPlayerIds,
         receivePlayerIds: body.receivePlayerIds,
       },
-      rosters,
       engine,
       ctx,
     );
-
-    // Attach team names from users
-    const users = await sleeper.getUsers(body.leagueId);
-    const userMap = new Map(users.map((u) => [u.user_id, u]));
-    const rosterA = rosters.find((r) => r.roster_id === body.rosterIdA);
-    const rosterB = rosters.find((r) => r.roster_id === body.rosterIdB);
-    if (rosterA) result.sideA.teamName = userMap.get(rosterA.owner_id)?.display_name ?? result.sideA.teamName;
-    if (rosterB) result.sideB.teamName = userMap.get(rosterB.owner_id)?.display_name ?? result.sideB.teamName;
 
     return reply.send({ ...result, engine: engine.name });
   });
 
   // ── Waiver recommendations ──────────────────────────────────
 
-  app.get('/api/brain/waiver/:leagueId/:rosterId', async (req, reply) => {
+  app.get('/api/brain/waiver/:leagueId/:memberId', async (req, reply) => {
     const params = z.object({
-      leagueId: z.string().min(1),
-      rosterId: z.coerce.number().int().positive(),
+      leagueId: z.string().uuid(),
+      memberId: z.string().uuid(),
     }).parse(req.params);
 
     const qs = z.object({
       limit: z.coerce.number().int().min(1).max(50).default(10),
     }).parse(req.query);
 
-    const ctx = await buildContext(params.leagueId);
-    const rosters = await sleeper.getRosters(params.leagueId);
+    const ctx = await fpl.buildContext();
+    const allRosters = await loadLeagueRosters(params.leagueId, ctx);
+    const roster = allRosters.find((r) => r.memberId === params.memberId);
+
+    if (!roster) {
+      return reply.code(404).send({ error: 'Roster not found for this member' });
+    }
 
     const result = recommendWaivers(
-      { rosterId: params.rosterId, limit: qs.limit },
-      rosters,
+      { roster, allRosters, limit: qs.limit },
       engine,
       ctx,
     );
+
+    // Save to brain history
+    await saveBrainResult(params.leagueId, params.memberId, 'waiver', ctx.currentGameweek, result);
 
     return reply.send({ ...result, engine: engine.name });
   });
 
   // ── FAAB advisor ────────────────────────────────────────────
 
-  app.get('/api/brain/faab/:leagueId/:rosterId', async (req, reply) => {
+  app.get('/api/brain/faab/:leagueId/:memberId', async (req, reply) => {
     const params = z.object({
-      leagueId: z.string().min(1),
-      rosterId: z.coerce.number().int().positive(),
+      leagueId: z.string().uuid(),
+      memberId: z.string().uuid(),
     }).parse(req.params);
 
     const qs = z.object({
       limit: z.coerce.number().int().min(1).max(20).default(5),
     }).parse(req.query);
 
-    const ctx = await buildContext(params.leagueId);
-    const rosters = await sleeper.getRosters(params.leagueId);
+    const ctx = await fpl.buildContext();
+    const allRosters = await loadLeagueRosters(params.leagueId, ctx);
+    const roster = allRosters.find((r) => r.memberId === params.memberId);
+
+    if (!roster) {
+      return reply.code(404).send({ error: 'Roster not found for this member' });
+    }
+
+    const totalBudget = 100; // FPL draft standard FAAB budget
 
     const result = adviseFaab(
-      { rosterId: params.rosterId, limit: qs.limit },
-      rosters,
+      { roster, allRosters, totalBudget, limit: qs.limit },
       engine,
       ctx,
     );
 
+    await saveBrainResult(params.leagueId, params.memberId, 'faab', ctx.currentGameweek, result);
+
     return reply.send({ ...result, engine: engine.name });
+  });
+
+  // ── Brain history ─────────────────────────────────────────────
+
+  app.get('/api/brain/history/:leagueId/:memberId', async (req, reply) => {
+    const params = z.object({
+      leagueId: z.string().uuid(),
+      memberId: z.string().uuid(),
+    }).parse(req.params);
+
+    const qs = z.object({
+      type: z.enum(['waiver', 'faab', 'trade']).optional(),
+      limit: z.coerce.number().int().min(1).max(50).default(20),
+    }).parse(req.query);
+
+    let typeFilter = '';
+    const qParams: unknown[] = [params.leagueId, params.memberId, qs.limit];
+    if (qs.type) {
+      typeFilter = 'AND result_type = $4';
+      qParams.push(qs.type);
+    }
+
+    const result = await query(
+      `SELECT id, result_type, gameweek, result, created_at
+       FROM brain_results
+       WHERE league_id = $1 AND member_id = $2 ${typeFilter}
+       ORDER BY created_at DESC
+       LIMIT $3`,
+      qParams,
+    );
+
+    return reply.send(result.rows);
   });
 }
 
 // ── Shared helpers ────────────────────────────────────────────
 
 /**
- * Build the ProjectionContext that all brain services need.
- * Fetches current NFL state, league info, player metadata, and recent stats.
+ * Load all rosters for a league from the DB and convert to BrainRoster format.
+ * Each roster is a league_member with their rostered player FPL IDs.
  */
-async function buildContext(leagueId: string): Promise<ProjectionContext> {
-  const [league, nflState, players] = await Promise.all([
-    sleeper.getLeague(leagueId),
-    sleeper.getNflState(),
-    sleeper.getPlayers(),
-  ]);
+async function loadLeagueRosters(
+  leagueId: string,
+  _ctx: ProjectionContext,
+): Promise<BrainRoster[]> {
+  const members = await query(
+    `SELECT lm.id, lm.team_name,
+            COALESCE(
+              (SELECT json_agg(rs.player_id)
+               FROM roster_slots rs WHERE rs.member_id = lm.id),
+              '[]'::json
+            ) AS player_ids,
+            COALESCE(lm.faab_remaining, 100) AS faab_remaining
+     FROM league_members lm
+     WHERE lm.league_id = $1`,
+    [leagueId],
+  );
 
-  const currentWeek = nflState.week;
-  const totalWeeks = 17; // NFL regular season
-
-  // Fetch stats for recent weeks (last 6 weeks or from week 1, whichever is less)
-  const fromWeek = Math.max(1, currentWeek - 6);
-  const toWeek = Math.max(1, currentWeek - 1); // don't include current in-progress week
-
-  let playerStats: Record<string, Record<number, Record<string, number>>> = {};
-  if (toWeek >= fromWeek) {
-    playerStats = await sleeper.getPlayerStatsRange(
-      nflState.season,
-      fromWeek,
-      toWeek,
-    );
-  }
-
-  return {
-    league,
-    week: currentWeek,
-    totalWeeks,
-    playerStats,
-    players,
-  };
+  return members.rows.map((row: any) => ({
+    memberId: row.id,
+    teamName: row.team_name ?? 'Unknown',
+    playerIds: Array.isArray(row.player_ids) ? row.player_ids : JSON.parse(row.player_ids ?? '[]'),
+    faabRemaining: row.faab_remaining ?? 100,
+  }));
 }
 
-function detectScoringType(settings: Record<string, number>): string {
-  const rec = settings.rec ?? 0;
-  if (rec >= 1) return 'PPR';
-  if (rec >= 0.5) return 'Half PPR';
-  return 'Standard';
+/**
+ * Save a brain result (waiver/faab/trade analysis) for history tracking.
+ */
+async function saveBrainResult(
+  leagueId: string,
+  memberId: string,
+  resultType: string,
+  gameweek: number,
+  result: unknown,
+): Promise<void> {
+  try {
+    await query(
+      `INSERT INTO brain_results (league_id, member_id, result_type, gameweek, result)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [leagueId, memberId, resultType, gameweek, JSON.stringify(result)],
+    );
+  } catch {
+    // Non-critical — don't fail the request if history save fails
+    // (table might not exist yet if migration hasn't run)
+  }
 }

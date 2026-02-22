@@ -1,99 +1,89 @@
+import type { Position } from '@pitch-draft/shared';
 import type { ProjectionEngine } from './projection/engine.js';
 import type {
   ProjectionContext,
   FaabAdvice,
   FaabBidSuggestion,
-  SleeperRoster,
+  BrainRoster,
   WaiverRecommendation,
 } from './types.js';
 import { recommendWaivers } from './waiver-recommender.js';
 
 interface FaabInput {
-  rosterId: number;
-  /** Max bid suggestions to return */
+  roster: BrainRoster;
+  allRosters: BrainRoster[];
+  totalBudget: number;
   limit?: number;
 }
 
 /**
- * FAAB budget advisor.
+ * FAAB budget advisor with competitive awareness.
  *
- * Answers three questions:
- * 1. How's my budget pacing? (Over/under-spending vs. where we are in the season)
- * 2. What should I bid on this week?
- * 3. How much should I bid for each target?
+ * Beyond basic pacing, this analyzes ALL teams' rosters to estimate
+ * how many managers will bid on each target. More competition = higher bid.
  *
- * Bid sizing is based on:
- * - Net improvement the player brings to your roster
- * - Positional scarcity (scarce positions are bid up by other managers)
- * - Where we are in the season (late-season adds are cheaper)
- * - Budget remaining (can't recommend $20 if you have $8 left)
+ * 1. Budget pacing: are you over/under-spending?
+ * 2. Competitive analysis: who else needs this position?
+ * 3. Bid sizing: improvement × scarcity × competition × urgency
  */
 export function adviseFaab(
   input: FaabInput,
-  rosters: SleeperRoster[],
   engine: ProjectionEngine,
   ctx: ProjectionContext,
 ): FaabAdvice {
   const limit = input.limit ?? 5;
-  const roster = rosters.find((r) => r.roster_id === input.rosterId);
-  if (!roster) {
-    throw Object.assign(new Error('Roster not found'), {
-      status: 400,
-      code: 'ROSTER_NOT_FOUND',
-    });
-  }
-
-  // Budget info
-  const totalBudget = ctx.league.settings.waiver_budget || 100;
-  const spent = roster.settings.waiver_budget_used ?? 0;
-  const remaining = totalBudget - spent;
-  const weeksPassed = Math.max(ctx.week - 1, 0);
-  const weeksRemaining = Math.max(ctx.totalWeeks - ctx.week, 1);
+  const { roster, totalBudget } = input;
+  const spent = totalBudget - roster.faabRemaining;
+  const remaining = roster.faabRemaining;
+  const gwPassed = Math.max(ctx.currentGameweek - 1, 0);
+  const gwRemaining = Math.max(ctx.totalGameweeks - ctx.currentGameweek, 1);
 
   // Pacing
-  const idealSpentPct = weeksPassed / ctx.totalWeeks;
-  const actualSpentPct = spent / totalBudget;
-  const weeklyBudget = remaining / weeksRemaining;
+  const idealSpentPct = gwPassed / ctx.totalGameweeks;
+  const actualSpentPct = totalBudget > 0 ? spent / totalBudget : 0;
+  const weeklyBudget = remaining / gwRemaining;
 
   let status: FaabAdvice['pacing']['status'];
   let recommendation: string;
 
   if (actualSpentPct < idealSpentPct - 0.15) {
     status = 'under_spending';
-    recommendation = `You've only spent $${spent} of $${totalBudget} through week ${ctx.week}. ` +
-      `You can afford to be more aggressive — unspent FAAB at season's end is wasted value. ` +
-      `Target ~$${Math.round(weeklyBudget)} per week.`;
+    recommendation = `Only ${spent} of ${totalBudget} FAAB spent through GW${ctx.currentGameweek}. ` +
+      `Be more aggressive — unspent FAAB at season's end is wasted. Target ~${Math.round(weeklyBudget)}/week.`;
   } else if (actualSpentPct > idealSpentPct + 0.15) {
     status = 'over_spending';
-    recommendation = `You've spent $${spent} of $${totalBudget} with ${weeksRemaining} weeks left. ` +
-      `Tighten up — only bid on clear starters. Save $${Math.round(remaining * 0.2)} as a reserve ` +
-      `for late-season emergencies.`;
+    recommendation = `${spent} of ${totalBudget} FAAB spent with ${gwRemaining} GWs left. ` +
+      `Tighten bids — only chase clear starters. Reserve ${Math.round(remaining * 0.2)} for emergencies.`;
   } else {
     status = 'on_track';
-    recommendation = `Budget pacing is healthy. $${remaining} remaining over ${weeksRemaining} weeks ` +
-      `(~$${Math.round(weeklyBudget)}/week). Keep a $${Math.round(remaining * 0.15)} reserve for must-haves.`;
+    recommendation = `Pacing is healthy. ${remaining} FAAB over ${gwRemaining} GWs ` +
+      `(~${Math.round(weeklyBudget)}/week). Keep ~${Math.round(remaining * 0.15)} in reserve.`;
   }
 
-  // Use the waiver recommender to find targets
+  // Get waiver recommendations
   const waiverAnalysis = recommendWaivers(
-    { rosterId: input.rosterId, limit: limit + 5 },
-    rosters,
+    { roster, allRosters: input.allRosters, limit: limit + 5 },
     engine,
     ctx,
   );
 
-  // Convert recommendations into bid suggestions
+  // Competitive analysis: count how many teams need each position
+  const positionDemand = analyzeLeagueDemand(input.allRosters, engine, ctx);
+
+  // Convert to bid suggestions
   const bids: FaabBidSuggestion[] = waiverAnalysis.recommendations
     .slice(0, limit)
-    .map((rec, i) => toBidSuggestion(rec, i, remaining, weeksRemaining, engine, ctx));
+    .map((rec, i) => toBidSuggestion(
+      rec, i, remaining, gwRemaining, positionDemand, engine, ctx,
+    ));
 
   return {
     budget: {
       total: totalBudget,
       spent,
       remaining,
-      weeksPassed,
-      weeksRemaining,
+      gameweeksPassed: gwPassed,
+      gameweeksRemaining: gwRemaining,
     },
     pacing: {
       weeklyBudget: round(weeklyBudget),
@@ -104,85 +94,133 @@ export function adviseFaab(
   };
 }
 
-// ── Internals ─────────────────────────────────────────────────
+// ── Competitive analysis ──────────────────────────────────────
+
+/**
+ * For each position, count how many teams are "thin" (at or below minimum).
+ * More teams thin at a position = more competition for free agents at that position.
+ */
+function analyzeLeagueDemand(
+  allRosters: BrainRoster[],
+  engine: ProjectionEngine,
+  ctx: ProjectionContext,
+): Map<Position, number> {
+  const demand = new Map<Position, number>();
+  const positions: Position[] = ['GKP', 'DEF', 'MID', 'FWD'];
+
+  for (const pos of positions) {
+    let teamsNeedingPos = 0;
+
+    for (const roster of allRosters) {
+      const projections = roster.playerIds
+        .map((id) => engine.projectPlayer(id, ctx))
+        .filter((p) => p.position === pos);
+
+      const sorted = [...projections].sort((a, b) => b.ppg - a.ppg);
+      const baseline = posThreshold(pos);
+
+      // A team "needs" this position if their worst rostered player
+      // at that position is significantly below replacement level
+      const weakest = sorted[sorted.length - 1];
+      if (!weakest || weakest.ppg < baseline * 0.6) {
+        teamsNeedingPos++;
+      }
+    }
+
+    demand.set(pos, teamsNeedingPos);
+  }
+
+  return demand;
+}
 
 function toBidSuggestion(
   rec: WaiverRecommendation,
   rank: number,
   budgetRemaining: number,
-  weeksRemaining: number,
+  gwRemaining: number,
+  positionDemand: Map<Position, number>,
   engine: ProjectionEngine,
   ctx: ProjectionContext,
 ): FaabBidSuggestion {
   const scarcity = engine.getPositionalScarcity(rec.player.position, ctx);
+  const competition = positionDemand.get(rec.player.position) ?? 0;
 
-  // Base bid: proportional to net improvement
-  const netGainNormalized = Math.min(rec.netGain / 50, 1); // 50 ROS pts = max signal
-  const seasonUrgency = 1 + (1 - weeksRemaining / ctx.totalWeeks) * 0.3; // bid more late
+  // Base bid sizing
+  const netGainNormalized = Math.min(rec.netGain / 30, 1); // 30 ROS pts = max signal (FPL scale)
+  const seasonUrgency = 1 + (1 - gwRemaining / ctx.totalGameweeks) * 0.3;
+  const competitionMult = 1 + competition * 0.15; // more competitors = bid higher
 
-  const basePct = netGainNormalized * scarcity * seasonUrgency;
-  const maxBid = Math.round(budgetRemaining * Math.min(basePct * 0.3, 0.5));
+  const basePct = netGainNormalized * scarcity * seasonUrgency * competitionMult;
+  const maxBid = Math.max(1, Math.round(budgetRemaining * Math.min(basePct * 0.25, 0.45)));
   const minBid = Math.max(1, Math.round(maxBid * 0.5));
   const recommended = Math.round((minBid + maxBid) / 2);
 
-  // Priority classification
+  // Priority classification (FPL-calibrated: lower ROS totals than NFL)
   let priority: FaabBidSuggestion['priority'];
-  if (rec.netGain > 40) {
-    priority = 'must_bid';
-  } else if (rec.netGain > 20) {
-    priority = 'strong_add';
-  } else if (rec.netGain > 8) {
-    priority = 'depth_add';
-  } else {
-    priority = 'speculative';
-  }
+  if (rec.netGain > 25) priority = 'must_bid';
+  else if (rec.netGain > 12) priority = 'strong_add';
+  else if (rec.netGain > 5) priority = 'depth_add';
+  else priority = 'speculative';
 
-  // Confidence decreases for lower-ranked targets
-  const confidence = Math.max(0.3, 0.85 - rank * 0.1);
-
-  const reason = buildBidReason(rec, recommended, priority, budgetRemaining, weeksRemaining);
+  const confidence = round(Math.max(0.3, 0.85 - rank * 0.1));
+  const reason = buildReason(rec, recommended, priority, competition, budgetRemaining);
 
   return {
-    player: rec.player,
+    player: {
+      playerId: rec.player.playerId,
+      name: rec.player.name,
+      position: rec.player.position,
+      clubCode: rec.player.clubCode,
+      form: rec.player.form,
+    },
     suggestedBid: {
       min: Math.min(minBid, budgetRemaining),
       max: Math.min(maxBid, budgetRemaining),
       recommended: Math.min(recommended, budgetRemaining),
     },
-    confidence: round(confidence),
+    confidence,
     reason,
     priority,
+    estimatedCompetition: competition,
   };
 }
 
-function buildBidReason(
+function buildReason(
   rec: WaiverRecommendation,
   recommended: number,
   priority: string,
+  competition: number,
   remaining: number,
-  weeksRemaining: number,
 ): string {
   const parts: string[] = [];
 
-  if (priority === 'must_bid') {
-    parts.push(`High-impact ${rec.player.position} add.`);
-  } else if (priority === 'strong_add') {
-    parts.push(`Solid ${rec.player.position} upgrade.`);
-  } else if (priority === 'depth_add') {
-    parts.push(`Bench depth improvement.`);
-  } else {
-    parts.push(`Low-cost speculative add.`);
-  }
+  if (priority === 'must_bid') parts.push(`High-impact ${rec.player.position} add.`);
+  else if (priority === 'strong_add') parts.push(`Solid ${rec.player.position} upgrade.`);
+  else if (priority === 'depth_add') parts.push(`Bench depth improvement.`);
+  else parts.push(`Low-cost speculative add.`);
 
   if (rec.improvementOver) {
-    parts.push(
-      `Projects ${round(rec.netGain)} more ROS pts than ${rec.improvementOver.name}.`,
-    );
+    parts.push(`Projects ${round(rec.netGain)} more ROS pts than ${rec.improvementOver.name}.`);
   }
 
-  parts.push(`$${recommended} is ~${Math.round((recommended / remaining) * 100)}% of remaining budget.`);
+  if (competition >= 3) {
+    parts.push(`High competition — ${competition} teams need ${rec.player.position}.`);
+  } else if (competition >= 2) {
+    parts.push(`Moderate competition from ${competition} other teams.`);
+  }
+
+  if (rec.player.fixtureRun < 2.5) {
+    parts.push('Favorable upcoming fixtures.');
+  }
+
+  parts.push(`${recommended} FAAB = ~${remaining > 0 ? Math.round((recommended / remaining) * 100) : 0}% of budget.`);
 
   return parts.join(' ');
+}
+
+function posThreshold(pos: Position): number {
+  const t: Record<string, number> = { GKP: 3.5, DEF: 3.8, MID: 4.2, FWD: 3.8 };
+  return t[pos] ?? 3.5;
 }
 
 function round(n: number): number {

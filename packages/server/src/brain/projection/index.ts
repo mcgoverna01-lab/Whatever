@@ -1,29 +1,28 @@
 import type { ProjectionEngine } from './engine.js';
 import { HeuristicEngine } from './heuristic.js';
+import { AiEngine } from './ai.js';
 
 export { ProjectionEngine } from './engine.js';
 export { HeuristicEngine } from './heuristic.js';
+export { AiEngine } from './ai.js';
 
 /**
- * Factory: create the right projection engine from a config string.
+ * Factory: create the right engine from config.
  *
- * Currently supported:
- *   'heuristic' — fast, no external calls, good enough for 90% of use cases.
- *
- * Future:
- *   'ai' — calls an LLM for context-aware projections (injury news, matchups, etc).
- *
- * To add a new engine, implement ProjectionEngine and add a case here.
+ *   'heuristic' — fast, uses FPL form/PPG/FDR (default)
+ *   'ai'        — LLM-powered context-aware projections (stubbed)
  */
 export function createEngine(type: string = 'heuristic'): ProjectionEngine {
   switch (type) {
     case 'heuristic':
       return new HeuristicEngine();
-
-    // case 'ai':
-    //   return new AiEngine({ provider, model, apiKey });
-
+    case 'ai':
+      return new AiEngine({
+        provider: process.env.AI_PROVIDER ?? 'anthropic',
+        model: process.env.AI_MODEL ?? 'claude-sonnet-4-5-20250929',
+        apiKey: process.env.AI_API_KEY ?? '',
+      });
     default:
-      throw new Error(`Unknown projection engine: "${type}". Valid: heuristic`);
+      throw new Error(`Unknown projection engine: "${type}". Valid: heuristic, ai`);
   }
 }

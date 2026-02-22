@@ -1,127 +1,131 @@
+import { SQUAD_CONSTRAINTS } from '@pitch-draft/shared';
+import type { Position } from '@pitch-draft/shared';
 import type { ProjectionEngine } from './projection/engine.js';
+import { FplClient } from './fpl-client.js';
 import type {
   ProjectionContext,
   WaiverAnalysis,
   WaiverRecommendation,
-  SleeperRoster,
+  BrainRoster,
+  PlayerProjection,
 } from './types.js';
 
+/** FPL starter slots per position. */
+const STARTER_SLOTS: Record<Position, number> = { GKP: 1, DEF: 3, MID: 2, FWD: 1 };
+/** Min starters in a valid XI (1 GKP + 10 outfield). */
+const MIN_MINUTES_THRESHOLD = 200;
+
 interface WaiverInput {
-  /** The roster to analyze */
-  rosterId: number;
-  /** Max recommendations to return */
+  roster: BrainRoster;
+  allRosters: BrainRoster[];
   limit?: number;
 }
 
 /**
  * Analyze a roster and recommend waiver pickups.
  *
- * This is NOT just "best available players." It's:
- * 1. What positions is this roster weakest at?
- * 2. Who's available that would improve THOSE positions?
- * 3. Who should be dropped to make room?
- * 4. Ranked by net improvement to the starting lineup.
+ * Smarter than "best available": considers roster needs, FPL constraints,
+ * fixture runs, and filters out players unlikely to play.
+ *
+ * 1. Identify roster weaknesses by position
+ * 2. Filter free agents: must have minutes > 200, active status, valid position
+ * 3. Check FPL constraints (3-per-club, position limits) before recommending
+ * 4. Rank by net improvement to the specific roster
  */
 export function recommendWaivers(
   input: WaiverInput,
-  rosters: SleeperRoster[],
   engine: ProjectionEngine,
   ctx: ProjectionContext,
 ): WaiverAnalysis {
   const limit = input.limit ?? 10;
-  const roster = rosters.find((r) => r.roster_id === input.rosterId);
-  if (!roster) {
-    throw Object.assign(new Error('Roster not found'), {
-      status: 400,
-      code: 'ROSTER_NOT_FOUND',
-    });
-  }
-
-  const playerIds = roster.players ?? [];
-  const starterIds = new Set(roster.starters ?? []);
+  const roster = input.roster;
 
   // Project every player on this roster
-  const rosterProjections = playerIds.map((id) => ({
-    ...engine.projectPlayer(id, ctx),
-    isStarter: starterIds.has(id),
-  }));
-
-  // Figure out roster positions (how many starters at each pos)
-  const positionSlots = countStarterSlots(ctx.league.roster_positions);
+  const rosterProjections = roster.playerIds.map((id) => engine.projectPlayer(id, ctx));
 
   // Analyze roster needs
-  const rosterNeeds = analyzeNeeds(rosterProjections, positionSlots, engine, ctx);
+  const rosterNeeds = analyzeNeeds(rosterProjections, ctx);
 
-  // Find all free agents (not on any roster)
-  const rosteredIds = new Set<string>();
-  for (const r of rosters) {
-    if (r.players) {
-      for (const id of r.players) rosteredIds.add(id);
-    }
+  // Find free agents (not on ANY roster)
+  const rosteredIds = new Set<number>();
+  for (const r of input.allRosters) {
+    for (const id of r.playerIds) rosteredIds.add(id);
   }
 
-  // Filter to relevant free agents (real NFL players with a team)
-  const freeAgents: string[] = [];
-  for (const [id, player] of Object.entries(ctx.players)) {
+  // Smart filtering: only relevant, active players with real minutes
+  const freeAgentIds: number[] = [];
+  for (const [id, player] of ctx.players) {
     if (
       !rosteredIds.has(id) &&
-      player.team &&
-      player.status === 'Active' &&
+      player.status === 'a' &&
+      player.minutes >= MIN_MINUTES_THRESHOLD &&
       isRelevantPosition(player.position)
     ) {
-      freeAgents.push(id);
+      freeAgentIds.push(id);
     }
   }
 
-  // Project all free agents
-  const faProjections = freeAgents
+  // Project free agents and sort by ROS value
+  const faProjections = freeAgentIds
     .map((id) => engine.projectPlayer(id, ctx))
-    .filter((p) => p.ppg > 0)
+    .filter((p) => p.ppg > 0.5)
     .sort((a, b) => b.ros - a.ros);
 
-  // For each free agent, calculate the net improvement if they replaced
-  // the weakest player at their position (or a droppable bench player)
+  // Build recommendations with constraint checking
   const recommendations: WaiverRecommendation[] = [];
+  const currentClubCounts = countClubs(roster.playerIds, ctx);
+  const currentPosCounts = countPositions(roster.playerIds, ctx);
 
   for (const fa of faProjections) {
     if (recommendations.length >= limit) break;
 
-    const { worstPlayer, netGain, reason } = findBestSwap(
-      fa,
-      rosterProjections,
-      positionSlots,
-      engine,
-      ctx,
-    );
+    const player = ctx.players.get(fa.playerId);
+    if (!player) continue;
 
-    // Only recommend if there's meaningful improvement
-    if (netGain <= 0.5) continue;
+    // Find who to drop
+    const dropResult = findBestDrop(fa, rosterProjections, player, currentClubCounts, currentPosCounts, ctx);
+    if (!dropResult) continue;
+
+    // Verify club limit: adding this player (after dropping)
+    const dropPlayer = ctx.players.get(dropResult.drop.playerId);
+    const netClubChange = player.clubCode === dropPlayer?.clubCode ? 0 : 1;
+    const clubCount = currentClubCounts.get(player.clubCode) ?? 0;
+    const dropClubCount = dropPlayer ? (player.clubCode === dropPlayer.clubCode ? 0 : 1) : 0;
+    if (clubCount + netClubChange - dropClubCount > SQUAD_CONSTRAINTS.maxPerClub) continue;
+
+    // Verify position limits
+    if (player.position !== dropPlayer?.position) {
+      const posCount = currentPosCounts[player.position] ?? 0;
+      const posLimit = SQUAD_CONSTRAINTS.positions[player.position as keyof typeof SQUAD_CONSTRAINTS.positions];
+      if (posLimit && posCount >= posLimit.max) continue;
+    }
+
+    const fixtureRun = FplClient.averageFdr(player.teamId, ctx.fixtures, ctx.currentGameweek + 1, 5);
 
     recommendations.push({
       player: {
         playerId: fa.playerId,
         name: fa.name,
         position: fa.position,
-        team: fa.team,
+        clubCode: fa.clubCode,
+        form: player.form,
+        fixtureRun: round(fixtureRun),
       },
       projectedROS: round(fa.ros),
-      improvementOver: worstPlayer
-        ? {
-            playerId: worstPlayer.playerId,
-            name: worstPlayer.name,
-            position: worstPlayer.position,
-            projectedROS: round(worstPlayer.ros),
-          }
-        : null,
-      netGain: round(netGain),
-      reason,
-      suggestedDrop: worstPlayer
-        ? {
-            playerId: worstPlayer.playerId,
-            name: worstPlayer.name,
-            position: worstPlayer.position,
-          }
-        : null,
+      improvementOver: {
+        playerId: dropResult.drop.playerId,
+        name: dropResult.drop.name,
+        position: dropResult.drop.position,
+        projectedROS: round(dropResult.drop.ros),
+      },
+      netGain: round(dropResult.netGain),
+      reason: dropResult.reason,
+      suggestedDrop: {
+        playerId: dropResult.drop.playerId,
+        name: dropResult.drop.name,
+        position: dropResult.drop.position,
+        clubCode: ctx.players.get(dropResult.drop.playerId)?.clubCode ?? '???',
+      },
     });
   }
 
@@ -130,162 +134,132 @@ export function recommendWaivers(
 
 // ── Internals ─────────────────────────────────────────────────
 
-interface RosterProjection {
-  playerId: string;
-  name: string;
-  position: string;
-  team: string | null;
-  ros: number;
-  ppg: number;
-  confidence: number;
-  isStarter: boolean;
-}
-
-/**
- * Count how many starter slots each position gets.
- * FLEX counts as a fractional slot across eligible positions.
- */
-function countStarterSlots(
-  rosterPositions: string[],
-): Record<string, number> {
-  const slots: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DEF: 0 };
-
-  for (const pos of rosterPositions) {
-    if (pos === 'BN' || pos === 'IR') continue;
-    if (pos === 'FLEX') {
-      // FLEX is typically RB/WR/TE — credit each equally
-      slots.RB += 0.34;
-      slots.WR += 0.34;
-      slots.TE += 0.32;
-    } else if (pos === 'SUPER_FLEX' || pos === 'SUPERFLEX') {
-      slots.QB += 0.4;
-      slots.RB += 0.2;
-      slots.WR += 0.2;
-      slots.TE += 0.2;
-    } else if (pos === 'REC_FLEX') {
-      slots.WR += 0.5;
-      slots.TE += 0.5;
-    } else if (pos in slots) {
-      slots[pos] += 1;
-    }
-  }
-
-  return slots;
-}
-
 function analyzeNeeds(
-  rosterProjections: RosterProjection[],
-  positionSlots: Record<string, number>,
-  engine: ProjectionEngine,
+  projections: PlayerProjection[],
   ctx: ProjectionContext,
 ): WaiverAnalysis['rosterNeeds'] {
   const needs: WaiverAnalysis['rosterNeeds'] = [];
-  const posGroups = groupBy(rosterProjections, (p) => p.position);
+  const byPos = groupBy(projections, (p) => p.position);
 
-  for (const [pos, slotCount] of Object.entries(positionSlots)) {
-    if (slotCount < 0.5) continue; // Not a starter position worth analyzing
-    const playersAtPos = posGroups[pos] ?? [];
-    const sortedByRos = [...playersAtPos].sort((a, b) => b.ros - a.ros);
-    const starterCount = Math.ceil(slotCount);
-
-    // How good are the starters?
-    const starters = sortedByRos.slice(0, starterCount);
+  for (const pos of ['GKP', 'DEF', 'MID', 'FWD'] as Position[]) {
+    const players = byPos[pos] ?? [];
+    const required = SQUAD_CONSTRAINTS.positions[pos].min;
+    const sorted = [...players].sort((a, b) => b.ros - a.ros);
+    const starters = sorted.slice(0, STARTER_SLOTS[pos]);
     const avgPpg = starters.length > 0
       ? starters.reduce((s, p) => s + p.ppg, 0) / starters.length
       : 0;
 
     const baseline = positionBaselineThreshold(pos);
-    const depth = playersAtPos.length;
 
-    if (depth <= starterCount) {
+    if (players.length < required) {
       needs.push({
         position: pos,
         severity: 'high',
-        reason: `Only ${depth} ${pos}(s) rostered — no bench depth behind ${starterCount} starter slot(s).`,
+        reason: `Only ${players.length} ${pos}(s) rostered — need ${required}.`,
       });
-    } else if (avgPpg < baseline * 0.75) {
+    } else if (players.length <= STARTER_SLOTS[pos]) {
       needs.push({
         position: pos,
         severity: 'high',
-        reason: `${pos} starters averaging ${round(avgPpg)} PPG — well below league average.`,
+        reason: `No ${pos} bench depth — any injury leaves you without a sub.`,
+      });
+    } else if (avgPpg < baseline * 0.7) {
+      needs.push({
+        position: pos,
+        severity: 'high',
+        reason: `${pos} starters averaging ${round(avgPpg)} PPG — well below league average (${baseline}).`,
       });
     } else if (avgPpg < baseline) {
       needs.push({
         position: pos,
         severity: 'medium',
-        reason: `${pos} starters averaging ${round(avgPpg)} PPG — slightly below average.`,
+        reason: `${pos} starters averaging ${round(avgPpg)} PPG — below average (${baseline}).`,
       });
     }
   }
 
-  // Sort high → low severity
-  const severityOrder = { high: 0, medium: 1, low: 2 };
-  needs.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+  needs.sort((a, b) => {
+    const order = { high: 0, medium: 1, low: 2 };
+    return order[a.severity] - order[b.severity];
+  });
 
   return needs;
 }
 
-function findBestSwap(
-  freeAgent: { playerId: string; name: string; position: string; team: string | null; ros: number; ppg: number },
-  rosterProjections: RosterProjection[],
-  positionSlots: Record<string, number>,
-  engine: ProjectionEngine,
+function findBestDrop(
+  fa: PlayerProjection,
+  rosterProjections: PlayerProjection[],
+  faPlayer: { position: Position; clubCode: string },
+  clubCounts: Map<string, number>,
+  posCounts: Record<string, number>,
   ctx: ProjectionContext,
-): { worstPlayer: RosterProjection | null; netGain: number; reason: string } {
-  // Find droppable players: bench players, or the worst player at a surplus position
-  const samePos = rosterProjections
-    .filter((p) => p.position === freeAgent.position)
-    .sort((a, b) => a.ros - b.ros);
+): { drop: PlayerProjection; netGain: number; reason: string } | null {
+  // Sort roster by ROS ascending (worst first)
+  const sorted = [...rosterProjections].sort((a, b) => a.ros - b.ros);
 
-  const benchAtPos = samePos.filter((p) => !p.isStarter);
-
-  // Primary target: worst bench player at the same position
-  if (benchAtPos.length > 0) {
-    const worst = benchAtPos[0];
-    const netGain = freeAgent.ros - worst.ros;
-    return {
-      worstPlayer: worst,
-      netGain,
-      reason: `${freeAgent.name} projects ${round(freeAgent.ros)} ROS pts, replacing bench ${freeAgent.position} ${worst.name} (${round(worst.ros)}).`,
-    };
-  }
-
-  // Secondary: worst bench player at any position (if this FA is a starter-level upgrade)
-  const allBench = rosterProjections
-    .filter((p) => !p.isStarter)
-    .sort((a, b) => a.ros - b.ros);
-
-  if (allBench.length > 0) {
-    const worst = allBench[0];
-    const netGain = freeAgent.ros - worst.ros;
-    if (netGain > 0) {
+  // Prefer dropping same position (maintains squad structure)
+  const samePosDrops = sorted.filter((p) => p.position === fa.position);
+  if (samePosDrops.length > 0) {
+    const worst = samePosDrops[0];
+    const netGain = fa.ros - worst.ros;
+    if (netGain > 1) {
+      const fixtureNote = faPlayer.clubCode
+        ? ` ${faPlayer.clubCode} have favorable upcoming fixtures.`
+        : '';
       return {
-        worstPlayer: worst,
+        drop: worst,
         netGain,
-        reason: `${freeAgent.name} (${freeAgent.position}) adds ${round(netGain)} ROS pts over bench player ${worst.name} (${worst.position}).`,
+        reason: `${fa.name} projects ${round(fa.ros)} ROS pts vs ${worst.name}'s ${round(worst.ros)}.${fixtureNote}`,
       };
     }
   }
 
-  // No good swap
-  return { worstPlayer: null, netGain: 0, reason: '' };
+  // Cross-position drop: only if we'd still meet position minimums
+  for (const candidate of sorted) {
+    if (candidate.position === fa.position) continue;
+    const posCount = posCounts[candidate.position] ?? 0;
+    const minRequired = SQUAD_CONSTRAINTS.positions[candidate.position as keyof typeof SQUAD_CONSTRAINTS.positions]?.min ?? 0;
+    if (posCount <= minRequired) continue; // can't go below minimum
+
+    const netGain = fa.ros - candidate.ros;
+    if (netGain > 3) {
+      return {
+        drop: candidate,
+        netGain,
+        reason: `${fa.name} (${fa.position}) adds ${round(netGain)} more ROS pts than ${candidate.name} (${candidate.position}).`,
+      };
+    }
+  }
+
+  return null;
 }
 
-/** PPG thresholds for an "average" starter (roughly league median). */
-function positionBaselineThreshold(pos: string): number {
-  const thresholds: Record<string, number> = {
-    QB: 18,
-    RB: 12,
-    WR: 12,
-    TE: 9,
-    K: 8,
-    DEF: 7,
-  };
-  return thresholds[pos] ?? 6;
+function countClubs(playerIds: number[], ctx: ProjectionContext): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const id of playerIds) {
+    const p = ctx.players.get(id);
+    if (p) counts.set(p.clubCode, (counts.get(p.clubCode) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function countPositions(playerIds: number[], ctx: ProjectionContext): Record<string, number> {
+  const counts: Record<string, number> = { GKP: 0, DEF: 0, MID: 0, FWD: 0 };
+  for (const id of playerIds) {
+    const p = ctx.players.get(id);
+    if (p && p.position in counts) counts[p.position]++;
+  }
+  return counts;
+}
+
+function positionBaselineThreshold(pos: Position): number {
+  const thresholds: Record<string, number> = { GKP: 4.0, DEF: 4.2, MID: 5.0, FWD: 4.5 };
+  return thresholds[pos] ?? 4.0;
 }
 
 function isRelevantPosition(pos: string): boolean {
-  return ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'].includes(pos);
+  return ['GKP', 'DEF', 'MID', 'FWD'].includes(pos);
 }
 
 function groupBy<T>(arr: T[], fn: (item: T) => string): Record<string, T[]> {

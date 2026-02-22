@@ -1,62 +1,46 @@
+import type { Position } from '@pitch-draft/shared';
 import type { PlayerProjection, ProjectionContext } from '../types.js';
 
 /**
- * Abstract base for all projection engines.
+ * Abstract projection engine.
  *
- * Why a class instead of plain functions?
- * → The AI engine (future) will carry state (model config, prompt cache, etc).
- * → The strategy pattern lets us swap engines via config without changing callers.
+ * Strategy pattern — swap implementations without changing callers:
+ *   HeuristicEngine  → fast, uses FPL's own data (form, PPG, FDR)
+ *   AiEngine (future) → calls an LLM with context (news, fixtures, trends)
  *
- * To add a new engine:
- * 1. Extend ProjectionEngine
- * 2. Implement projectPlayer() and getPositionalScarcity()
- * 3. Register it in the factory (projection/index.ts)
+ * Both produce identical output shapes.
  */
 export abstract class ProjectionEngine {
-  /** Friendly name shown in API responses so callers know which engine produced the result. */
   abstract readonly name: string;
 
   /**
    * Project a single player's rest-of-season value.
    *
-   * @param playerId - Sleeper player ID
-   * @param context  - League scoring, weekly stats, player metadata, current week
+   * Implementations must handle:
+   * - Blank gameweeks (team has no fixture → 0 pts that GW)
+   * - Double gameweeks (team has 2 fixtures → 2× pts that GW)
+   * - Injuries (chance_of_playing scales projection)
+   * - Fixture difficulty (FDR 1–5 adjusts expected output)
    */
   abstract projectPlayer(
-    playerId: string,
+    playerId: number,
     context: ProjectionContext,
   ): PlayerProjection;
 
   /**
-   * Positional scarcity multiplier.
-   * A scarce position (TE in most leagues) returns > 1.0,
-   * meaning players at that position are worth more in trade value.
-   * Surplus positions (K, DEF) return < 1.0.
+   * Positional scarcity multiplier for trade/waiver value assessment.
+   * Scarce positions return > 1.0, surplus positions < 1.0.
    */
   abstract getPositionalScarcity(
-    position: string,
+    position: Position,
     context: ProjectionContext,
   ): number;
 
-  /**
-   * Project all players on a roster.
-   * Default implementation calls projectPlayer() for each.
-   */
-  projectRoster(
-    playerIds: string[],
-    context: ProjectionContext,
-  ): PlayerProjection[] {
+  projectRoster(playerIds: number[], context: ProjectionContext): PlayerProjection[] {
     return playerIds.map((id) => this.projectPlayer(id, context));
   }
 
-  /**
-   * Calculate scarcity-adjusted value: raw ROS * scarcity multiplier.
-   */
-  adjustForScarcity(
-    projection: PlayerProjection,
-    context: ProjectionContext,
-  ): number {
-    const mult = this.getPositionalScarcity(projection.position, context);
-    return projection.ros * mult;
+  adjustForScarcity(projection: PlayerProjection, context: ProjectionContext): number {
+    return projection.ros * this.getPositionalScarcity(projection.position, context);
   }
 }
