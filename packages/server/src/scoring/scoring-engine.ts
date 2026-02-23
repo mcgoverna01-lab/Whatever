@@ -1,3 +1,4 @@
+import type pg from 'pg';
 import { pool, withTransaction } from '../db/pool.js';
 import { FPL_DEFAULT_SCORING, type ScoringRules, type AutoSub } from '@pitch-draft/shared';
 
@@ -239,7 +240,7 @@ export async function scoreGameweek(
       const autoSubs = processAutoSubs(starters, bench);
 
       // Build effective starting XI after auto-subs
-      const effectiveStarters = new Set(starters.map((s) => s.player_id));
+      const effectiveStarters = new Set(starters.map((s) => s.playerId));
       for (const sub of autoSubs) {
         effectiveStarters.delete(sub.playerOut);
         effectiveStarters.add(sub.playerIn);

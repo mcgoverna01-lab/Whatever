@@ -13,6 +13,7 @@ interface DraftRow {
   current_round: number;
   current_pick: number;
   pick_timer_seconds: number;
+  pick_timer_started_at: string | null;
 }
 
 interface QueueRow {

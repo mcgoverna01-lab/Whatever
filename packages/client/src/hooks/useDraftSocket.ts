@@ -76,7 +76,7 @@ export function useDraftSocket(
             ...s,
             picks: newPicks,
             draftedPlayerIds: newDrafted,
-            onTheClock: event.nextOnClock?.member_id ?? null,
+            onTheClock: event.nextOnClock?.memberId ?? null,
             error: null,
           };
         });
@@ -86,7 +86,7 @@ export function useDraftSocket(
       case 's:draft_started': {
         setState((s) => ({
           ...s,
-          onTheClock: event.firstOnClock?.member_id ?? null,
+          onTheClock: event.firstOnClock?.memberId ?? null,
         }));
         break;
       }
