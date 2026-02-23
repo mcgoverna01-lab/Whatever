@@ -50,6 +50,38 @@ interface BrainWaiverResult {
   engine: string;
 }
 
+interface FaabBidSuggestion {
+  player: {
+    playerId: number;
+    name: string;
+    position: string;
+    clubCode: string;
+    form: number;
+  };
+  suggestedBid: { min: number; max: number; recommended: number };
+  confidence: number;
+  reason: string;
+  priority: 'must_bid' | 'strong_add' | 'depth_add' | 'speculative';
+  estimatedCompetition: number;
+}
+
+interface BrainFaabResult {
+  budget: {
+    total: number;
+    spent: number;
+    remaining: number;
+    gameweeksPassed: number;
+    gameweeksRemaining: number;
+  };
+  pacing: {
+    weeklyBudget: number;
+    status: 'under_spending' | 'on_track' | 'over_spending';
+    recommendation: string;
+  };
+  bids: FaabBidSuggestion[];
+  engine: string;
+}
+
 export function WaiverView({ availablePlayers, roster, faabRemaining }: Props) {
   const [mode, setMode] = useState<'waiver' | 'faab'>('waiver');
   const [viewTab, setViewTab] = useState<'manual' | 'brain'>('manual');
@@ -64,6 +96,11 @@ export function WaiverView({ availablePlayers, roster, faabRemaining }: Props) {
   const [brainResult, setBrainResult] = useState<BrainWaiverResult | null>(null);
   const [brainLoading, setBrainLoading] = useState(false);
   const [brainError, setBrainError] = useState<string | null>(null);
+
+  // FAAB brain state
+  const [faabResult, setFaabResult] = useState<BrainFaabResult | null>(null);
+  const [faabLoading, setFaabLoading] = useState(false);
+  const [faabError, setFaabError] = useState<string | null>(null);
 
   const filtered = availablePlayers
     .filter((p) => posFilter === 'ALL' || p.position === posFilter)
@@ -112,11 +149,33 @@ export function WaiverView({ availablePlayers, roster, faabRemaining }: Props) {
     }
   }, []);
 
+  const fetchFaabRecommendations = useCallback(async () => {
+    setFaabLoading(true);
+    setFaabError(null);
+
+    try {
+      const leagueId = '00000000-0000-0000-0000-000000000000';
+      const memberId = '00000000-0000-0000-0000-000000000001';
+      const res = await fetch(`/api/brain/faab/${leagueId}/${memberId}?limit=5`);
+
+      if (!res.ok) throw new Error(`Brain API error: ${res.status}`);
+      const data = await res.json();
+      setFaabResult(data);
+    } catch (err: any) {
+      setFaabError(err.message ?? 'Failed to fetch FAAB advice');
+    } finally {
+      setFaabLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (viewTab === 'brain' && !brainResult && !brainLoading) {
+    if (viewTab === 'brain' && mode === 'waiver' && !brainResult && !brainLoading) {
       fetchBrainRecommendations();
     }
-  }, [viewTab, brainResult, brainLoading, fetchBrainRecommendations]);
+    if (viewTab === 'brain' && mode === 'faab' && !faabResult && !faabLoading) {
+      fetchFaabRecommendations();
+    }
+  }, [viewTab, mode, brainResult, brainLoading, faabResult, faabLoading, fetchBrainRecommendations, fetchFaabRecommendations]);
 
   const severityBadge = (severity: string) => {
     const colors: Record<string, string> = { high: 'var(--red)', medium: 'var(--yellow)', low: 'var(--green)' };
@@ -162,8 +221,8 @@ export function WaiverView({ availablePlayers, roster, faabRemaining }: Props) {
         </button>
       </div>
 
-      {/* Brain Recommendations Tab */}
-      {viewTab === 'brain' && (
+      {/* Brain Recommendations Tab — Priority Waiver mode */}
+      {viewTab === 'brain' && mode === 'waiver' && (
         <div className="brain-waiver-section">
           {brainLoading && <div className="brain-loading">Loading brain recommendations...</div>}
 
@@ -181,7 +240,6 @@ export function WaiverView({ availablePlayers, roster, faabRemaining }: Props) {
                 <span className="brain-engine">Engine: {brainResult.engine}</span>
               </div>
 
-              {/* Roster Needs */}
               {brainResult.rosterNeeds.length > 0 && (
                 <div className="brain-needs">
                   <h3 className="section-label">Roster Needs</h3>
@@ -197,7 +255,6 @@ export function WaiverView({ availablePlayers, roster, faabRemaining }: Props) {
                 </div>
               )}
 
-              {/* Recommendations */}
               <div className="brain-recs">
                 <h3 className="section-label">Recommended Pickups ({brainResult.recommendations.length})</h3>
                 {brainResult.recommendations.length === 0 ? (
@@ -233,6 +290,93 @@ export function WaiverView({ availablePlayers, roster, faabRemaining }: Props) {
                             <span className="rec-drop-club">{rec.suggestedDrop.clubCode}</span>
                           </div>
                         )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Brain FAAB Advice Tab */}
+      {viewTab === 'brain' && mode === 'faab' && (
+        <div className="brain-waiver-section">
+          {faabLoading && <div className="brain-loading">Loading FAAB advice...</div>}
+
+          {faabError && (
+            <div className="brain-error">
+              Brain unavailable: {faabError}
+              <button className="retry-btn" onClick={fetchFaabRecommendations}>Retry</button>
+            </div>
+          )}
+
+          {faabResult && (
+            <>
+              <div className="brain-header">
+                <span className="brain-label">FAAB Budget Advisor</span>
+                <span className="brain-engine">Engine: {faabResult.engine}</span>
+              </div>
+
+              {/* Budget Pacing */}
+              <div className="brain-needs">
+                <h3 className="section-label">Budget Pacing</h3>
+                <div className="need-card">
+                  <span className={`severity-badge ${
+                    faabResult.pacing.status === 'on_track' ? 'low'
+                    : faabResult.pacing.status === 'under_spending' ? 'medium'
+                    : 'high'
+                  }`} style={{ color: '#fff' }}>
+                    {faabResult.pacing.status.replace('_', ' ')}
+                  </span>
+                  <span className="need-reason">
+                    {faabResult.budget.remaining} / {faabResult.budget.total} FAAB remaining
+                    ({faabResult.budget.gameweeksRemaining} GWs left, ~{faabResult.pacing.weeklyBudget.toFixed(0)}/week)
+                  </span>
+                </div>
+                <p className="rec-reason" style={{ marginTop: '0.25rem' }}>{faabResult.pacing.recommendation}</p>
+              </div>
+
+              {/* Bid Suggestions */}
+              <div className="brain-recs">
+                <h3 className="section-label">Suggested Bids ({faabResult.bids.length})</h3>
+                {faabResult.bids.length === 0 ? (
+                  <p className="empty-text">No bid suggestions at this time.</p>
+                ) : (
+                  <div className="rec-list">
+                    {faabResult.bids.map((bid, i) => (
+                      <div key={i} className="rec-card">
+                        <div className="rec-rank">#{i + 1}</div>
+                        <div className="rec-main">
+                          <div className="rec-player">
+                            <span className={`pos-badge pos-${bid.player.position.toLowerCase()}`}>{bid.player.position}</span>
+                            <span className="rec-player-name">{bid.player.name}</span>
+                            <span className="rec-player-club">{bid.player.clubCode}</span>
+                          </div>
+                          <div className="rec-stats">
+                            <span className="rec-stat">
+                              Bid: {bid.suggestedBid.min}–{bid.suggestedBid.max} FAAB
+                            </span>
+                            <span className="rec-stat positive">
+                              rec: {bid.suggestedBid.recommended}
+                            </span>
+                            <span className="rec-stat">
+                              {bid.estimatedCompetition} rival{bid.estimatedCompetition !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <div className="rec-stats">
+                            <span className={`severity-badge ${
+                              bid.priority === 'must_bid' ? 'high'
+                              : bid.priority === 'strong_add' ? 'medium'
+                              : 'low'
+                            }`} style={{ color: '#fff', fontSize: '0.6rem' }}>
+                              {bid.priority.replace('_', ' ')}
+                            </span>
+                            <span className="rec-stat">Form: {bid.player.form.toFixed(1)}</span>
+                          </div>
+                          <div className="rec-reason">{bid.reason}</div>
+                        </div>
                       </div>
                     ))}
                   </div>
