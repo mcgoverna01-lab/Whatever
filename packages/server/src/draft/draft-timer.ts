@@ -3,6 +3,7 @@ import { executeAutoPick } from './auto-pick.js';
 import type { PickResult } from './draft-engine.js';
 
 type TimerCallback = (result: PickResult) => void;
+type PauseCallback = (draftId: string, reason: string) => void;
 
 interface ActiveTimer {
   draftId: string;
@@ -22,9 +23,14 @@ interface ActiveTimer {
 export class DraftTimerManager {
   private timers = new Map<string, ActiveTimer>();
   private onPickCallback: TimerCallback | null = null;
+  private onPauseCallback: PauseCallback | null = null;
 
   onPick(callback: TimerCallback): void {
     this.onPickCallback = callback;
+  }
+
+  onPause(callback: PauseCallback): void {
+    this.onPauseCallback = callback;
   }
 
   /**
@@ -125,7 +131,22 @@ export class DraftTimerManager {
       }
     } catch (err) {
       console.error(`Auto-pick failed for draft ${draftId}:`, err);
-      // TODO: pause draft and notify commissioner
+
+      // Pause the draft so the commissioner can resolve the issue
+      const reason = err instanceof Error ? err.message : 'Auto-pick failed unexpectedly';
+      try {
+        await pool.query(
+          `UPDATE drafts SET status = 'paused' WHERE id = $1 AND status = 'in_progress'`,
+          [draftId],
+        );
+      } catch (dbErr) {
+        console.error(`Failed to pause draft ${draftId}:`, dbErr);
+      }
+
+      // Notify connected clients via callback
+      if (this.onPauseCallback) {
+        this.onPauseCallback(draftId, reason);
+      }
     }
   }
 }

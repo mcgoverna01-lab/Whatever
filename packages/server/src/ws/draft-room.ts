@@ -3,6 +3,8 @@ import type { WebSocket } from 'ws';
 import type { ClientEvent, ServerEvent } from '@pitch-draft/shared';
 import { makePick, getDraftState, DraftError, draftTimerManager } from '../draft/index.js';
 import type { PickResult } from '../draft/index.js';
+import { verifyAccessToken } from '../auth/crypto.js';
+import { query } from '../db/pool.js';
 
 interface ConnectedClient {
   ws: WebSocket;
@@ -24,6 +26,15 @@ class DraftRoomManager {
     // Wire up auto-pick broadcast
     draftTimerManager.onPick((result) => {
       this.broadcastPick(result);
+    });
+
+    // Wire up pause broadcast (auto-pick failure)
+    draftTimerManager.onPause((draftId, reason) => {
+      this.broadcast(draftId, {
+        type: 's:draft_paused',
+        draftId,
+        reason,
+      });
     });
   }
 
@@ -98,11 +109,40 @@ export async function registerDraftWebSocket(app: FastifyInstance): Promise<void
   app.get('/ws/draft/:draftId', { websocket: true }, async (socket, req) => {
     const { draftId } = req.params as { draftId: string };
 
-    // TODO: authenticate the connection and extract memberId from JWT
-    // For now, require memberId as query param
-    const memberId = (req.query as any).memberId as string;
+    // Authenticate via JWT (query param `token` or Authorization header).
+    // Falls back to `memberId` query param in development.
+    let memberId: string | null = null;
+
+    const token =
+      (req.query as any).token as string | undefined ??
+      req.headers.authorization?.replace('Bearer ', '');
+
+    if (token) {
+      try {
+        const payload = await verifyAccessToken(token);
+        // Look up the league member for this user + draft's league
+        const memberResult = await query(
+          `SELECT lm.id FROM league_members lm
+           JOIN drafts d ON d.league_id = lm.league_id
+           WHERE d.id = $1 AND lm.user_id = $2`,
+          [draftId, payload.sub],
+        );
+        if (memberResult.rows.length === 0) {
+          socket.close(4003, 'Not a member of this draft league');
+          return;
+        }
+        memberId = memberResult.rows[0].id;
+      } catch {
+        socket.close(4001, 'Invalid or expired token');
+        return;
+      }
+    } else {
+      // Dev fallback: accept memberId directly (no auth)
+      memberId = (req.query as any).memberId as string ?? null;
+    }
+
     if (!memberId) {
-      socket.close(4001, 'Missing memberId');
+      socket.close(4001, 'Authentication required');
       return;
     }
 
