@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { fpl, createEngine, evaluateTrade, recommendWaivers, adviseFaab } from '../brain/index.js';
+import { projectionTracker } from '../brain/projection/tracker.js';
 import { query } from '../db/pool.js';
 import type { BrainRoster, ProjectionContext } from '../brain/types.js';
 
@@ -147,6 +148,75 @@ export async function registerBrainRoutes(app: FastifyInstance): Promise<void> {
     await saveBrainResult(params.leagueId, params.memberId, 'faab', ctx.currentGameweek, result);
 
     return reply.send({ ...result, engine: engine.name });
+  });
+
+  // ── Projection accuracy ───────────────────────────────────────
+
+  /**
+   * GET /api/brain/accuracy/:engineName
+   * Accuracy report for the given engine over the last N gameweeks.
+   * engineName: 'heuristic' | 'ai' | 'compare'
+   */
+  app.get('/api/brain/accuracy/:engineName', async (req, reply) => {
+    const { engineName } = z.object({
+      engineName: z.enum(['heuristic', 'ai', 'compare']),
+    }).parse(req.params);
+
+    const qs = z.object({
+      gameweeks: z.coerce.number().int().min(1).max(38).default(10),
+    }).parse(req.query);
+
+    if (engineName === 'compare') {
+      const comparison = await projectionTracker.compareEngines(qs.gameweeks);
+      return reply.send(comparison);
+    }
+
+    const report = await projectionTracker.getAccuracyReport(engineName, qs.gameweeks);
+    return reply.send(report);
+  });
+
+  /**
+   * POST /api/brain/accuracy/snapshot
+   * Save projection snapshot for the current gameweek.
+   * Call this before each GW deadline to start tracking accuracy.
+   */
+  app.post('/api/brain/accuracy/snapshot', async (_req, reply) => {
+    await projectionTracker.ensureTable();
+    const ctx = await fpl.buildContext();
+
+    // Snapshot for both engines
+    const [hSaved, aiSaved] = await Promise.all([
+      projectionTracker.saveSnapshot(createEngine('heuristic'), ctx),
+      projectionTracker.saveSnapshot(createEngine('ai'), ctx),
+    ]);
+
+    return reply.send({
+      gameweek: ctx.currentGameweek,
+      heuristicSaved: hSaved,
+      aiSaved,
+      message: `Snapshot saved for GW${ctx.currentGameweek}`,
+    });
+  });
+
+  /**
+   * POST /api/brain/accuracy/record-actuals/:gameweek
+   * Record actual scores for a completed gameweek.
+   * Call this after each GW's bonus points are applied.
+   */
+  app.post('/api/brain/accuracy/record-actuals/:gameweek', async (req, reply) => {
+    const { gameweek } = z.object({
+      gameweek: z.coerce.number().int().min(1).max(38),
+    }).parse(req.params);
+
+    await projectionTracker.ensureTable();
+    const ctx = await fpl.buildContext();
+    const updated = await projectionTracker.recordActuals(ctx, gameweek);
+
+    return reply.send({
+      gameweek,
+      updated,
+      message: `Recorded actuals for ${updated} players in GW${gameweek}`,
+    });
   });
 
   // ── Brain history ─────────────────────────────────────────────

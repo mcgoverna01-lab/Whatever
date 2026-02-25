@@ -10,6 +10,7 @@ import { registerWaiverRoutes } from './routes/waiver.js';
 import { registerTradeRoutes } from './routes/trade.js';
 import { registerH2HRoutes } from './routes/h2h.js';
 import { registerBrainRoutes } from './routes/brain.js';
+import { registerSleeperRoutes } from './routes/sleeper.js';
 import { scheduler } from './scheduler/index.js';
 
 const app = Fastify({
@@ -38,6 +39,7 @@ async function start(): Promise<void> {
   await registerTradeRoutes(app);
   await registerH2HRoutes(app);
   await registerBrainRoutes(app);
+  await registerSleeperRoutes(app);
   await registerDraftWebSocket(app);
 
   // Health check

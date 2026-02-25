@@ -484,18 +484,109 @@ body {
 }
 .analyze-btn:hover { opacity: 0.9; }
 
-/* RESPONSIVE */
+/* RESPONSIVE — TABLET */
 @media (max-width: 768px) {
+  .content { padding: 0.75rem; }
+
+  /* Home */
   .home-grid { grid-template-columns: 1fr; }
   .overview-stats { grid-template-columns: repeat(2, 1fr); }
+
+  /* H2H */
   .h2h-grid { grid-template-columns: 1fr; }
+
+  /* Top bar */
   .top-bar-user .user-info { display: none; }
+
+  /* Standings table: horizontal scroll */
+  .standings-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .standings-table { min-width: 540px; }
+
+  /* Brain sides stack */
+  .brain-sides { grid-template-columns: 1fr; }
+
+  /* Draft room */
+  .draft-status-bar { flex-wrap: wrap; gap: 0.4rem; }
+  .draft-progress { min-width: 0; }
+  .progress-bar { max-width: 120px; }
+
+  /* Trade card body stacks */
+  .trade-card-body { flex-direction: column; gap: 0.5rem; }
+  .trade-side { text-align: left; }
+
+  /* FAAB bid cards */
+  .faab-bid-header { flex-wrap: wrap; gap: 0.3rem; }
 }
+
+/* RESPONSIVE — MOBILE */
 @media (max-width: 480px) {
-  .player-card { width: 58px; }
-  .player-card-name { font-size: 0.5625rem; }
+  .content { padding: 0.5rem; }
+
+  /* Top bar tighter */
+  .top-bar { padding: 0.5rem 0.75rem; }
+  .top-bar-title { font-size: 0.9rem; }
+  .top-bar-subtitle { display: none; }
+
+  /* Overview stats — 2 cols only */
+  .overview-stats { grid-template-columns: 1fr 1fr; gap: 0.375rem; }
+  .stat-value { font-size: 1.05rem; }
+
+  /* Cards */
+  .card { padding: 0.75rem; margin-bottom: 0.5rem; }
+
+  /* Pitch — compact for small screens */
+  .player-card { width: 54px; }
+  .player-card-name { font-size: 0.5rem; padding: 0.15rem 0.25rem; }
+  .player-card-pts { font-size: 0.5625rem; }
+  .pitch { padding: 0.75rem 0.2rem; min-height: 360px; }
+  .pitch-row { gap: 0.25rem; }
+  .bench-row { gap: 0.25rem; }
+
+  /* Roster meta — tighter spacing */
+  .roster-meta { gap: 0.75rem; }
+  .meta-value { font-size: 0.95rem; }
+  .roster-team-name { font-size: 1rem; }
+
+  /* Tab nav text smaller */
+  .tab-nav button { padding: 0.5rem 0.7rem; font-size: 0.7rem; }
+
+  /* Draft */
+  .timer-display { font-size: 1.2rem; }
+  .draft-pick-feed { max-height: 38vh; }
+  .pick-item { padding: 0.35rem 0.4rem; }
+
+  /* Waiver / FA list */
+  .fa-row { padding: 0.4rem 0.5rem; }
+  .claim-btn { padding: 0.2rem 0.4rem; font-size: 0.5625rem; }
+
+  /* Trade */
+  .trade-card-header { flex-wrap: wrap; gap: 0.3rem; }
+
+  /* Brain panel */
+  .brain-verdict { padding: 0.5rem; margin: 0.4rem; }
+  .verdict-title { font-size: 0.8rem; }
+  .brain-toggle { flex-wrap: wrap; }
+
+  /* Recommendation cards */
+  .rec-card { padding: 0.5rem; }
+  .rec-player-name { font-size: 0.75rem; }
+
+  /* H2H score */
+  .h2h-score { font-size: 0.85rem; }
+  .h2h-team .name { font-size: 0.7rem; }
+
+  /* Mini table adjustments */
+  .mini-table { font-size: 0.7rem; }
+  .mini-table th, .mini-table td { padding: 0.35rem 0.375rem; }
+}
+
+/* RESPONSIVE — TINY (< 360px, e.g. iPhone SE) */
+@media (max-width: 360px) {
+  .player-card { width: 46px; }
+  .player-card-name { font-size: 0.46875rem; padding: 0.1rem 0.2rem; }
+  .pitch-row { gap: 0.15rem; }
+  .tab-nav button { padding: 0.45rem 0.55rem; font-size: 0.625rem; }
   .overview-stats { grid-template-columns: 1fr 1fr; }
-  .pitch { padding: 1rem 0.25rem; }
 }
 </style>
 </head>
@@ -527,6 +618,7 @@ body {
   <button data-tab="standings">Standings</button>
   <button data-tab="waivers">Waivers</button>
   <button data-tab="trades">Trades</button>
+  <button data-tab="sleeper">Sleeper</button>
 </div>
 
 <!-- VIEWS -->
@@ -612,10 +704,12 @@ body {
     </div>
   </div>
   <div id="standingsTotal">
-    <table class="standings-table">
-      <thead><tr><th style="width:2rem;text-align:center">#</th><th>Team</th><th>Form</th><th style="text-align:right">GW</th><th style="text-align:right">Total</th></tr></thead>
-      <tbody id="standingsBody"></tbody>
-    </table>
+    <div class="standings-table-wrap">
+      <table class="standings-table">
+        <thead><tr><th style="width:2rem;text-align:center">#</th><th>Team</th><th>Form</th><th style="text-align:right">GW</th><th style="text-align:right">Total</th></tr></thead>
+        <tbody id="standingsBody"></tbody>
+      </table>
+    </div>
   </div>
   <div id="standingsH2H" style="display:none">
     <div class="section-label">GW24 Matchups</div>
@@ -666,6 +760,126 @@ body {
 
   <div class="section-label" style="margin-top:1rem;">Brain Trade Analysis</div>
   <div id="brainTradeAnalysis"></div>
+</div>
+
+<!-- SLEEPER -->
+<div class="view" id="view-sleeper">
+  <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:0.75rem;">Sleeper Integration</h2>
+
+  <!-- Connection status -->
+  <div class="card">
+    <div class="card-title">League Connection</div>
+    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
+      <div style="width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#9c27b0,#673ab7);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:800;color:#fff;flex-shrink:0;">SL</div>
+      <div>
+        <div style="font-weight:600;font-size:0.85rem;">Sleeper FPL Draft League</div>
+        <div style="font-size:0.65rem;color:var(--text-muted);">League ID: 1234567890 &bull; Sport: Soccer/EPL &bull; 8 teams</div>
+      </div>
+      <div style="margin-left:auto;"><span class="status-badge accepted">Connected</span></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;">
+      <div class="stat-block"><div class="stat-value" style="font-size:1rem;">8</div><div class="stat-label">Rosters</div></div>
+      <div class="stat-block"><div class="stat-value" style="font-size:1rem;">FAAB</div><div class="stat-label">Waiver Type</div></div>
+      <div class="stat-block"><div class="stat-value" style="font-size:1rem;">$100</div><div class="stat-label">Budget</div></div>
+    </div>
+  </div>
+
+  <!-- Last sync -->
+  <div class="card">
+    <div class="card-title">Sync Status</div>
+    <div id="sleeperSyncLog">
+      <div class="activity-item" style="margin-bottom:0.3rem;">
+        <span class="activity-badge waiver">SYNC</span>
+        <span style="flex:1;">Last sync: 5 minutes ago — all 8 rosters updated</span>
+        <span class="activity-time">2m ago</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-top:0.75rem;">
+        <div style="background:var(--bg-secondary);border-radius:6px;padding:0.5rem;">
+          <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.25rem;">Rosters synced</div>
+          <div style="font-size:1.1rem;font-weight:700;color:var(--success);">8/8</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:6px;padding:0.5rem;">
+          <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.25rem;">Players mapped</div>
+          <div style="font-size:1.1rem;font-weight:700;color:var(--accent);">118/120</div>
+        </div>
+      </div>
+      <button class="analyze-btn" style="margin-top:0.75rem;width:100%;" onclick="showToast('Sync triggered — pulling latest rosters from Sleeper...')">Sync Now</button>
+    </div>
+  </div>
+
+  <!-- Recent transactions from Sleeper -->
+  <div class="card">
+    <div class="card-title">Recent Sleeper Activity</div>
+    <div id="sleeperTransactions">
+      <div class="activity-item"><span class="activity-badge faab">FAAB</span><span style="flex:1;">Blue Moon City: Won Mitoma for $12 (adds)</span><span class="activity-time">2h ago</span></div>
+      <div class="activity-item"><span class="activity-badge waiver">WAIVER</span><span style="flex:1;">Merseyside Reds claimed Kudus, dropped Rashford</span><span class="activity-time">2h ago</span></div>
+      <div class="activity-item"><span class="activity-badge trade">TRADE</span><span style="flex:1;">West Ham Hammers traded Bowen → Villa Park Stars for Rogers</span><span class="activity-time">1d ago</span></div>
+      <div class="activity-item"><span class="activity-badge waiver">WAIVER</span><span style="flex:1;">Toon Army claimed Cash, dropped Mykolenko</span><span class="activity-time">2d ago</span></div>
+    </div>
+  </div>
+
+  <!-- Projection accuracy -->
+  <div class="card" style="border-color:var(--accent);">
+    <div class="card-title" style="color:var(--accent);">Brain Accuracy Tracker</div>
+    <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.75rem;">
+      How accurate are projections? Comparing predicted vs actual FPL points each gameweek.
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.75rem;" id="accuracyStats">
+      <div style="background:var(--bg-secondary);border-radius:6px;padding:0.6rem;">
+        <div style="font-size:0.6rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.3rem;">Heuristic MAE</div>
+        <div style="font-size:1.2rem;font-weight:700;color:var(--success);">1.8 pts</div>
+        <div style="font-size:0.6rem;color:var(--text-muted);">over last 10 GWs</div>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:6px;padding:0.6rem;">
+        <div style="font-size:0.6rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.3rem;">AI Engine MAE</div>
+        <div style="font-size:1.2rem;font-weight:700;color:var(--accent);">1.5 pts</div>
+        <div style="font-size:0.6rem;color:var(--text-muted);">over last 10 GWs</div>
+      </div>
+    </div>
+    <div style="background:var(--bg-secondary);border-radius:6px;padding:0.6rem;margin-bottom:0.5rem;">
+      <div style="font-size:0.625rem;font-weight:700;color:var(--text-secondary);margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.04em;">Last 5 Gameweeks — AI Engine</div>
+      <div id="accuracyByGW" style="display:flex;flex-direction:column;gap:0.3rem;">
+        <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.7rem;">
+          <span style="min-width:2.5rem;color:var(--text-muted);">GW24</span>
+          <div style="flex:1;height:6px;background:var(--border);border-radius:99px;overflow:hidden;">
+            <div style="width:68%;height:100%;background:var(--success);border-radius:99px;"></div>
+          </div>
+          <span style="min-width:3rem;text-align:right;color:var(--success);">MAE 1.4</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.7rem;">
+          <span style="min-width:2.5rem;color:var(--text-muted);">GW23</span>
+          <div style="flex:1;height:6px;background:var(--border);border-radius:99px;overflow:hidden;">
+            <div style="width:72%;height:100%;background:var(--success);border-radius:99px;"></div>
+          </div>
+          <span style="min-width:3rem;text-align:right;color:var(--success);">MAE 1.5</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.7rem;">
+          <span style="min-width:2.5rem;color:var(--text-muted);">GW22</span>
+          <div style="flex:1;height:6px;background:var(--border);border-radius:99px;overflow:hidden;">
+            <div style="width:55%;height:100%;background:var(--warning);border-radius:99px;"></div>
+          </div>
+          <span style="min-width:3rem;text-align:right;color:var(--warning);">MAE 1.9</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.7rem;">
+          <span style="min-width:2.5rem;color:var(--text-muted);">GW21</span>
+          <div style="flex:1;height:6px;background:var(--border);border-radius:99px;overflow:hidden;">
+            <div style="width:60%;height:100%;background:var(--warning);border-radius:99px;"></div>
+          </div>
+          <span style="min-width:3rem;text-align:right;color:var(--warning);">MAE 1.7</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.7rem;">
+          <span style="min-width:2.5rem;color:var(--text-muted);">GW20</span>
+          <div style="flex:1;height:6px;background:var(--border);border-radius:99px;overflow:hidden;">
+            <div style="width:50%;height:100%;background:var(--warning);border-radius:99px;"></div>
+          </div>
+          <span style="min-width:3rem;text-align:right;color:var(--warning);">MAE 2.1</span>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:0.65rem;color:var(--text-secondary);font-style:italic;">
+      Accuracy improves as the AI engine calibrates to your league. GW24 is the most accurate yet.
+    </div>
+  </div>
 </div>
 
 </div>
@@ -1339,6 +1553,28 @@ renderTrades();
 renderBrainTradeAnalysis();
 renderBrainWaiverRecs();
 renderBrainFaabAdvice();
+
+// ========== TOAST NOTIFICATIONS ==========
+function showToast(msg) {
+  let toast = document.getElementById('_toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = '_toast';
+    toast.style.cssText = [
+      'position:fixed', 'bottom:1rem', 'left:50%', 'transform:translateX(-50%)',
+      'background:#1a2234', 'border:1px solid var(--accent)',
+      'color:var(--text-primary)', 'padding:0.5rem 1rem',
+      'border-radius:6px', 'font-size:0.75rem', 'font-weight:600',
+      'z-index:999', 'max-width:90vw', 'text-align:center',
+      'transition:opacity 0.3s', 'pointer-events:none',
+    ].join(';');
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { toast.style.opacity = '0'; }, 2800);
+}
 </script>
 </body>
 </html>
