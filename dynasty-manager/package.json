@@ -1,0 +1,23 @@
+{
+  "name": "dynasty-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Personalized dynasty fantasy football roster analysis powered by Claude",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,client -c magenta,cyan \"npm run dev --workspace=dynasty-manager-server\" \"npm run dev --workspace=dynasty-manager-client\"",
+    "dev:server": "npm run dev --workspace=dynasty-manager-server",
+    "dev:client": "npm run dev --workspace=dynasty-manager-client",
+    "build:client": "npm run build --workspace=dynasty-manager-client",
+    "start:server": "npm run start --workspace=dynasty-manager-server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
